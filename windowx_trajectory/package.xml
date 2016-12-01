@@ -1,0 +1,32 @@
+<package>
+  <name>windowx_trajectory</name>
+  <version>0.10.0</version>
+  <description>
+    ROS node to compute torques for windowx arm.
+  </description>
+  <author>Matteo Mastellaro</author>
+  <maintainer email="matteoma@kth.se">Matteo Mastellaro</maintainer>
+  <license>BSD</license>
+  <url></url>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>std_msgs</build_depend>
+  <build_depend>message_generation</build_depend>
+
+  <run_depend>message_generation</run_depend>
+  <run_depend>std_msgs</run_depend>
+  <run_depend>message_runtime</run_depend>
+  <run_depend>rospy</run_depend>
+  <run_depend>tf</run_depend>
+  <run_depend>sensor_msgs</run_depend>
+  <run_depend>geometry_msgs</run_depend>
+  <run_depend>diagnostic_msgs</run_depend>
+  <run_depend>control_msgs</run_depend>
+  <run_depend>nav_msgs</run_depend>
+  <run_depend>actionlib</run_depend>
+  <run_depend>python-serial</run_depend>
+
+</package>
+
+
