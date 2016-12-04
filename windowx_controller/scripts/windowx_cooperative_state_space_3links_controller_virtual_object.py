@@ -33,7 +33,7 @@ class WindowxController():
         self.vel1 = False
         self.vel2 = False
         self.first_iter = True
-        self.x_off = 0.603 #0.603 #m
+        self.x_off = 0.605 #0.603 #m
         self.ees_y_off = 0
         self.omega_off1 = 0#Agles alway unther this value
         self.omega_off2 = 0

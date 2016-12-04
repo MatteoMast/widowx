@@ -10,7 +10,7 @@ from windowx_msgs.msg import TargetConfiguration
 import numpy as np
 
 if __name__ == '__main__':
-    period = 15 #s
+    period = 12 #s
     omega = (2*pi)/period
     target_pose = TargetConfiguration()
     acc = [0,0,0]
@@ -34,17 +34,17 @@ if __name__ == '__main__':
         # vel =[amplitude_x*omega*cos(omega*t.to_sec()),amplitude_y*omega*sin(omega*t.to_sec()), -2*(amplitude_theta)*omega*cos(2*omega*t.to_sec())]
         # acc =[-amplitude_x*(omega**2)*sin(omega*t.to_sec()),amplitude_y*(omega**2)*cos(omega*t.to_sec()), 4*(amplitude_theta)*(omega**2)*sin(2*omega*t.to_sec())]
         #Circle no orient
-        pos =[ 0.3 + amplitude_x*sin(omega*t.to_sec()), (0.12 + amplitude_y) - amplitude_y*cos(omega*t.to_sec()), 0]
-        vel =[amplitude_x*omega*cos(omega*t.to_sec()),amplitude_y*omega*sin(omega*t.to_sec()), 0]
-        acc =[-amplitude_x*(omega**2)*sin(omega*t.to_sec()),amplitude_y*(omega**2)*cos(omega*t.to_sec()), 0]
+        # pos =[ 0.3 + amplitude_x*sin(omega*t.to_sec()), (0.12 + amplitude_y) - amplitude_y*cos(omega*t.to_sec()), 0]
+        # vel =[amplitude_x*omega*cos(omega*t.to_sec()),amplitude_y*omega*sin(omega*t.to_sec()), 0]
+        # acc =[-amplitude_x*(omega**2)*sin(omega*t.to_sec()),amplitude_y*(omega**2)*cos(omega*t.to_sec()), 0]
         #x
         # pos =[ 0.3 + amplitude_x*sin(omega*t.to_sec()), 0.12, 0]
         # vel =[amplitude_x*omega*cos(omega*t.to_sec()),0,0]
         # acc =[-amplitude_x*(omega**2)*sin(omega*t.to_sec()),0,0]
         #x and theta
-        # pos =[ 0.3 + amplitude_x*sin(omega*t.to_sec()), 0.12, -amplitude_theta*sin(omega*t.to_sec())]
-        # vel =[amplitude_x*omega*cos(omega*t.to_sec()),0,-(amplitude_theta)*omega*cos(omega*t.to_sec())]
-        # acc =[-amplitude_x*(omega**2)*sin(omega*t.to_sec()),0,(amplitude_theta)*(omega**2)*sin(omega*t.to_sec())]
+        pos =[ 0.3 + amplitude_x*sin(omega*t.to_sec()), 0.12, -amplitude_theta*sin(omega*t.to_sec())]
+        vel =[amplitude_x*omega*cos(omega*t.to_sec()),0,-(amplitude_theta)*omega*cos(omega*t.to_sec())]
+        acc =[-amplitude_x*(omega**2)*sin(omega*t.to_sec()),0,(amplitude_theta)*(omega**2)*sin(omega*t.to_sec())]
         #y
         # pos =[ 0.3 , 0.12 + amplitude_y*sin(omega*t.to_sec()), 0]
         # vel =[0,amplitude_y*omega*cos(omega*t.to_sec()),0]
