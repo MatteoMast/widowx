@@ -16,7 +16,7 @@ class WindowxController():
     """Class to compute and pubblish joints torques"""
     def __init__(self):
         #Object parameters
-        self.m_obj = 0#0.062 #0.2 #Kg
+        self.m_obj = 0.062 #0.2 #Kg
         self.l1_obj = 0.135 #m
         self.l2_obj =  0.044 #m
         self.go = np.array([[0], [self.m_obj*9.81], [0]])
