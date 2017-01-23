@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<launch>
+
+<node pkg="windowx_driver" type="windowx_state_space_driver.py" name="windowx_3links_driver_r1" output="screen" args="" cwd="node">
+    <param name="robot_name"    value="r1" />
+    <param name="serial_port"   value="/dev/ttyUSB0" />
+
+</node>
+
+<node pkg="windowx_driver" type="windowx_state_space_driver.py" name="windowx_3links_driver_r2" output="screen" args="" cwd="node">
+    <param name="robot_name"    value="r2" />
+    <param name="serial_port"   value="/dev/ttyUSB1" />
+
+</node>
+
+</launch>

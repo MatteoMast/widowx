@@ -15,32 +15,32 @@ from servos_parameters import *
 
 class WindowxNode(ArbotiX):
     """Node to control in torque the dynamixel servos"""
-    def __init__(self):
+    def __init__(self, serial_port, robot_name):
         #Initialize arbotix comunications
-        print"\nArbotix initialization for r1, wait 10 seconds..."
-        ArbotiX.__init__(self, port="/dev/ttyUSB0")
+        print"\nArbotix initialization for " + robot_name + ", wait 10 seconds..."
+        ArbotiX.__init__(self, port=serial_port)
         for x in xrange(1,21):
             time.sleep(0.5)
-            print(str(x*0.5) + "/10s for r1")
+            print(str(x*0.5) + "/10s for " + robot_name)
             if rospy.is_shutdown():
                 break
-        print"Done."
+        print robot_name + "Done."
 
         #Set inital torque limits
-        print"Limiting torques"
+        print"Limiting torques for" + robot_name
         mx28_init_torque_limit = int(MX_TORQUE_STEPS/3)
         mx64_init_torque_limit = int(MX_TORQUE_STEPS/5)
         ax_init_torque_limit = int(AX_TORQUE_STEPS/2)
 
         self.setTorqueLimit(int(1), mx28_init_torque_limit)
         self.setTorqueLimit(int(2), mx64_init_torque_limit)
-        self.setTorqueLimit(int(3), (mx64_init_torque_limit + 100)) #The 3rd servo needs more torque to contrast initial inertias
+        self.setTorqueLimit(int(3), (mx64_init_torque_limit + 100)) #The 3rd servo needs more torque to compensate moving inertias
         self.setTorqueLimit(int(4), mx28_init_torque_limit)
         self.setTorqueLimit(int(5), ax_init_torque_limit)
         self.setTorqueLimit(int(6), ax_init_torque_limit)
 
-        #Go to 0 position for each servo
-        print"Going to initialization position..."
+        #Go to initial position
+        print robot_name + ": Going to initialization position..."
         self.setPosition(int(1), int(MX_POS_CENTER))
         self.setPosition(int(4), int(2170))
         self.setPosition(int(3), int(1577))
@@ -48,10 +48,10 @@ class WindowxNode(ArbotiX):
         self.setPosition(int(5), int(AX_POS_CENTER))
         self.setPosition(int(6), int(AX_POS_CENTER))
         time.sleep(3)
-        print("Closing gruppers")
+        print(robot_name + ": Closing gruppers")
         self.setPosition(int(6), 10)
 
-        print"Arm ready, setting up ROS topics..."
+        print robot_name + " ready, setting up ROS topics..."
 
         #Setupr velocities and positions vectors and messages
         self.joints_poses = [0,0,0,0,0,0]
@@ -67,19 +67,20 @@ class WindowxNode(ArbotiX):
         self.vels_to_pub.layout.data_offset = 0
 
         #ROS pubblisher for joint velocities and positions
-        self.pos_pub = rospy.Publisher('/windowx_3links_r1/joints_poses', Float32MultiArray, queue_size=1)
-        self.vel_pub = rospy.Publisher('/windowx_3links_r1/joints_vels', Float32MultiArray, queue_size=1)
+
+        self.pos_pub = rospy.Publisher('/windowx_3links_'+ robot_name +'/joints_poses', Float32MultiArray, queue_size=1)
+        self.vel_pub = rospy.Publisher('/windowx_3links_'+ robot_name +'/joints_vels', Float32MultiArray, queue_size=1)
         self.pub_rate = rospy.Rate(160)
 
         #ROS listener for control torues
-        self.torque_sub = rospy.Subscriber('windowx_3links_r1/torques', Float32MultiArray, self._torque_callback, queue_size=1)
-        self.gripper_sub = rospy.Subscriber('windowx_3links_r1/gripper', Bool, self._gripper_callback, queue_size=1)
+        self.torque_sub = rospy.Subscriber('windowx_3links_'+ robot_name +'/torques', Float32MultiArray, self._torque_callback, queue_size=1)
+        self.gripper_sub = rospy.Subscriber('windowx_3links_'+ robot_name +'/gripper', Bool, self._gripper_callback, queue_size=1)
 
-        print"\nWindowx_3link_r1 node created, whaiting for messages in:"
-        print"      windowx_3links_r1/torque"
+        print"\nWindowx_3link_" + robot_name + " node created, whaiting for messages in:"
+        print"      windowx_3links_" + robot_name + "/torque"
         print"Publishing joints' positions and velocities in:"
-        print"      /windowx_3links_r1/joints_poses"
-        print"      /windowx_3links_r1/joints_vels"
+        print"      /windowx_3links_" + robot_name + "/joints_poses"
+        print"      /windowx_3links_" + robot_name + "/joints_vels"
         #Start publisher
         self.publish()
 
@@ -211,7 +212,7 @@ class WindowxNode(ArbotiX):
                 self.vel_pub.publish(self.vels_to_pub)
                 self.pub_rate.sleep()
             else:
-                rospy.logwarn("Lost packet.")
+                rospy.logwarn(robot_name + ": Lost packet.")
 
     def tourn_off_arm(self):
         """
@@ -227,9 +228,11 @@ class WindowxNode(ArbotiX):
 
 if __name__ == '__main__':
     #Iitialize the node
-    rospy.init_node('windowx_3links_driver_r1')
+    rospy.init_node("windowx_3links")
+    robot_name = rospy.get_param(rospy.get_name() + "/robot_name")
+    serial_port = rospy.get_param(rospy.get_name() + "/serial_port")
     #Create windowx arm object
-    wn = WindowxNode()
+    wn = WindowxNode(serial_port, robot_name)
     #Handle shutdown
     rospy.on_shutdown(wn.tourn_off_arm)
     rospy.spin()
