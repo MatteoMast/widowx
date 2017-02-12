@@ -54,7 +54,7 @@ class WindowxNode(ArbotiX):
         self.setPosition(int(6), 50)
 
         #Limit joints velocities
-        max_rpm = 1.0
+        max_rpm = 1.5
         max_rad_s = max_rpm * 2*pi/60
         print(robot_name + ": Limiting joints velocities at: "+ str(max_rpm) +"rpm = "+ str(max_rad_s) +"rad/s")
         max_speed_steps = int(max_rpm/MX_VEL_UNIT)
@@ -118,8 +118,8 @@ class WindowxNode(ArbotiX):
         Compute currents from torques
         """
         currents = [np.sign(torques[0])*0.0338*(torques[0]**2) + 0.7592*torques[0] + self._gain(np.sign(directions[0]),np.sign(torques[0]))*4.5*0.1605, \
-                    np.sign(torques[1])*0.0338*(torques[1]**2) + 0.7592*torques[1] + self._gain(np.sign(directions[1]),np.sign(torques[1]))*4.5*0.1605, \
-                    np.sign(torques[2])*0.2258*(torques[2]**2) + 0.4850*torques[2] + self._gain(np.sign(directions[2]),np.sign(torques[2]))*0.1514]
+                    np.sign(torques[1])*0.0338*(torques[1]**2) + 0.7592*torques[1] + self._gain(np.sign(directions[1]),np.sign(torques[1]))*5*0.1605, \
+                    np.sign(torques[2])*0.2258*(torques[2]**2) + 0.4850*torques[2] + self._gain(np.sign(directions[2]),np.sign(torques[2]))*1.5*0.1514]
         # currents = [np.sign(torques[0])*0.0338*(torques[0]**2) + 0.7592*torques[0] + directions[0]*2*0.1605, \
         #             np.sign(torques[1])*0.0338*(torques[1]**2) + 0.7592*torques[1] + directions[1]*2*0.1605, \
         #             np.sign(torques[2])*0.2258*(torques[2]**2) + 0.4850*torques[2] + directions[2]*2*0.1514]
