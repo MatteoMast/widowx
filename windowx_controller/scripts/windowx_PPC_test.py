@@ -34,18 +34,18 @@ class WindowxController():
         self.omega_off2 = 0
 
         #Control parameters
-        self.gs = 0.07
-        self.gv = 14.0
+        self.gs = 0.05
+        self.gv = 7.0
 
         #Performance functions paramenters
         #position
-        self.ro_s_0_x = 0.1;
-        self.ro_s_0_y = 0.1;
-        self.ro_s_0_theta = 1;
+        self.ro_s_0_x = 0.05;
+        self.ro_s_0_y = 0.05;
+        self.ro_s_0_theta = 0.7;
 
         self.ro_s_inf_x = 0.02;
         self.ro_s_inf_y = 0.02;
-        self.ro_s_inf_theta = 0.1;
+        self.ro_s_inf_theta = 0.2;
 
         self.l_s_x = 0.5;
         self.l_s_y = 0.5;
@@ -56,13 +56,13 @@ class WindowxController():
         self.ro_v_0_y = 30.0;
         self.ro_v_0_theta = 50;
 
-        self.ro_v_inf_x = 22.0;
-        self.ro_v_inf_y = 22.0;
+        self.ro_v_inf_x = 20.0;
+        self.ro_v_inf_y = 20.0;
         self.ro_v_inf_theta = 30;
 
-        self.l_v_x = 0.1;
-        self.l_v_y = 0.1;
-        self.l_v_theta = 0.1;
+        self.l_v_x = 0.5;
+        self.l_v_y = 0.5;
+        self.l_v_theta = 0.5;
 
         #Initialize performance functions matrices
         self.ro_s = np.matrix([[self.ro_s_0_x,0,0],[0,self.ro_s_0_y,0],[0,0, self.ro_s_0_theta]])
@@ -275,9 +275,15 @@ class WindowxController():
             self.ro_v[1,1] = (self.ro_v_0_y - self.ro_v_inf_y) * exp(-self.l_v_y * (self.actual_time.to_sec())) + self.ro_v_inf_y
             self.ro_v[2,2] = (self.ro_v_0_theta - self.ro_v_inf_theta) * exp(-self.l_v_theta * (self.actual_time.to_sec())) + self.ro_v_inf_theta
 
+
+
+
+
             #Compute errors and derived signals
+            #r1
             #position errors
             e_s = self.obj_pose1 - self.target_pose
+            e_s1 = e_s
             csi_s = np.dot(inv(self.ro_s), e_s)
             csi_s[0,0] = np.sign(csi_s[0,0]) * min(0.9999, fabs(csi_s[0,0]))
             csi_s[1,0] = np.sign(csi_s[1,0]) * min(0.9999, fabs(csi_s[1,0]))
@@ -287,9 +293,7 @@ class WindowxController():
 
             #Compute moving direction for joints from position error
             v_1_des = np.dot(inv(J_1o), -e_s)
-            v_2_des = np.dot(inv(J_2o), -e_s)
             q1_dot_des = np.dot(r1_J_e_inv, v_1_des)
-            q2_dot_des = np.dot(r2_J_e_inv, v_2_des)
 
             #Compute reference velocity
             tmp = np.dot(inv(self.ro_s), r_s)
@@ -302,11 +306,61 @@ class WindowxController():
             csi_v[0,0] = np.sign(csi_v[0,0]) * min(0.99, fabs(csi_v[0,0]))
             csi_v[1,0] = np.sign(csi_v[1,0]) * min(0.99, fabs(csi_v[1,0]))
             csi_v[2,0] = np.sign(csi_v[2,0]) * min(0.99, fabs(csi_v[2,0]))
-            eps_v = np.array([[log((1 + csi_v[0,0])/(1 - csi_v[0,0])), log((1 + csi_v[1,0])/(1 - csi_v[1,0])), log((1 + csi_v[2,0])/(1 - csi_v[2,0]))]]).T
-            r_v = np.matrix([[2/(1 - csi_v[0,0]**2),0,0],[0,2/(1 - csi_v[1,0]**2),0],[0,0, 2/(1 - csi_v[2,0]**2)]])
+            eps_v1 = np.array([[log((1 + csi_v[0,0])/(1 - csi_v[0,0])), log((1 + csi_v[1,0])/(1 - csi_v[1,0])), log((1 + csi_v[2,0])/(1 - csi_v[2,0]))]]).T
+            r_v1 = np.matrix([[2/(1 - csi_v[0,0]**2),0,0],[0,2/(1 - csi_v[1,0]**2),0],[0,0, 2/(1 - csi_v[2,0]**2)]])
 
             if max(fabs(min(csi_s)), max(csi_s)) >0.9998 or max(fabs(min(csi_v)), max(csi_v))>0.98 :
-                print("\n csi_s:")
+                print("\n r1: \ncsi_s:")
+                print(csi_s)
+                print("csi_v")
+                print(csi_v)
+                print("e_v")
+                print(e_v)
+                print("ro_v")
+                print(self.ro_v)
+                print("e_s")
+                print(e_s)
+                print("ro_s")
+                print(self.ro_s)
+                print("Obj_vel")
+                print(self.obj_vel1)
+                print("referenc vel")
+                print(v_o_des)
+
+            #r2
+            e_s = self.obj_pose2 - self.target_pose
+            e_s2 = e_s
+            csi_s = np.dot(inv(self.ro_s), e_s)
+            csi_s[0,0] = np.sign(csi_s[0,0]) * min(0.9999, fabs(csi_s[0,0]))
+            csi_s[1,0] = np.sign(csi_s[1,0]) * min(0.9999, fabs(csi_s[1,0]))
+            csi_s[2,0] = np.sign(csi_s[2,0]) * min(0.9999, fabs(csi_s[2,0]))
+            eps_s = np.array([[log((1 + csi_s[0,0])/(1 - csi_s[0,0])), log((1 + csi_s[1,0])/(1 - csi_s[1,0])), log((1 + csi_s[2,0])/(1 - csi_s[2,0]))]]).T
+            r_s = np.matrix([[2/(1 - csi_s[0,0]**2),0,0],[0,2/(1 - csi_s[1,0]**2),0],[0,0, 2/(1 - csi_s[2,0]**2)]])
+
+            #Compute moving direction for joints from position error
+            v_2_des = np.dot(inv(J_2o), -e_s)
+            q2_dot_des = np.dot(r2_J_e_inv, v_2_des)
+
+            #Compute reference velocity
+            tmp = np.dot(inv(self.ro_s), r_s)
+            tmp = np.dot(tmp, eps_s)
+            v_o_des = - self.gs * tmp
+
+            #Velocity errors
+            e_v = self.obj_vel2 - v_o_des
+            csi_v = np.dot(inv(self.ro_v), e_v)
+            csi_v[0,0] = np.sign(csi_v[0,0]) * min(0.99, fabs(csi_v[0,0]))
+            csi_v[1,0] = np.sign(csi_v[1,0]) * min(0.99, fabs(csi_v[1,0]))
+            csi_v[2,0] = np.sign(csi_v[2,0]) * min(0.99, fabs(csi_v[2,0]))
+            eps_v2 = np.array([[log((1 + csi_v[0,0])/(1 - csi_v[0,0])), log((1 + csi_v[1,0])/(1 - csi_v[1,0])), log((1 + csi_v[2,0])/(1 - csi_v[2,0]))]]).T
+            r_v2 = np.matrix([[2/(1 - csi_v[0,0]**2),0,0],[0,2/(1 - csi_v[1,0]**2),0],[0,0, 2/(1 - csi_v[2,0]**2)]])
+
+
+
+
+
+            if max(fabs(min(csi_s)), max(csi_s)) >0.9998 or max(fabs(min(csi_v)), max(csi_v))>0.98 :
+                print("\n r2: \ncsi_s:")
                 print(csi_s)
                 print("csi_v")
                 print(csi_v)
@@ -326,10 +380,11 @@ class WindowxController():
 
             #Compute inputs
             #Object center of mass input
-            u_o = np.dot(np.dot(inv(self.ro_v), r_v), eps_v)
+            u_o1 = np.dot(np.dot(inv(self.ro_v), r_v1), eps_v1)
+            u_o2 = np.dot(np.dot(inv(self.ro_v), r_v2), eps_v2)
 
-            u_r1 = - self.c1 * self.gv * np.dot(J_1o.T, u_o)
-            u_r2 = - self.c2 * self.gv * np.dot(J_2o.T, u_o)
+            u_r1 = - self.c1 * self.gv * np.dot(J_1o.T, u_o1)
+            u_r2 = - self.c2 * self.gv * np.dot(J_2o.T, u_o2)
             print("\nInputs:")
             print(u_r1)
             print(u_r2)
@@ -356,7 +411,8 @@ class WindowxController():
                 print("Inputs r1, r2, obj")
                 print(u_r1)
                 print(u_r2)
-                print(-self.gv*u_o)
+                print(-self.gv*u_o1)
+                print(-self.gv*u_o2)
                 print("Jacobians")
                 print(r1_J_e.T)
                 print(r2_J_e.T)
@@ -377,9 +433,10 @@ class WindowxController():
 
 
             #self.errors.data = [self.obj_pose1[0,0], self.obj_pose1[1,0], self.obj_pose1[2,0], self.target_pose[0,0], self.target_pose[1,0], self.target_pose[2,0]]
-            self.errors.data = [self.ro_v[0,0], e_v[0,0], self.ro_v[1,1], e_v[1,0], self.ro_v[2,2], e_v[2,0], self.ro_s[0,0], e_s[0,0], self.ro_s[1,1], e_s[1,0], self.ro_s[2,2], e_s[2,0]]
+            #self.errors.data = [self.ro_v[0,0], e_v[0,0], self.ro_v[1,1], e_v[1,0], self.ro_v[2,2], e_v[2,0], self.ro_s[0,0], e_s[0,0], self.ro_s[1,1], e_s[1,0], self.ro_s[2,2], e_s[2,0]]
             #self.errors.data = [self.obj_pose1[0,0], self.obj_pose1[1,0], self.obj_pose1[2,0], r1_x_e[0,0], r1_x_e[1,0], r1_x_e[2,0], r2_x_e[0,0], r2_x_e[1,0], r2_x_e[2,0], self.obj_vel1[0,0], self.obj_vel1[1,0], self.obj_vel1[2,0]]
             #self.errors.data = [r1_v_e[0,0], r1_v_e[1,0], r1_v_e[2,0], r2_v_e[0,0], r2_v_e[1,0], r2_v_e[2,0]]
+            self.errors.data = [norm(u_o1), norm(u_o2), e_s1[0,0], e_s1[1,0], e_s1[2,0], e_s2[0,0], e_s2[1,0], e_s2[2,0]]
             self.errors_pub.publish(self.errors)
             self.pub_rate.sleep()
 

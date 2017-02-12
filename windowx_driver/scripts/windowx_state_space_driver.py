@@ -12,6 +12,7 @@ from math import pi
 from arbotix_python.arbotix import ArbotiX
 from std_msgs.msg import Float32MultiArray, MultiArrayDimension, Bool
 from servos_parameters import *
+from windowx_driver.srv import *
 
 class WindowxNode(ArbotiX):
     """Node to control in torque the dynamixel servos"""
@@ -24,36 +25,45 @@ class WindowxNode(ArbotiX):
             print(str(x*0.5) + "/10s for " + robot_name)
             if rospy.is_shutdown():
                 break
-        print robot_name + "Done."
+        print robot_name + " Done."
+
+        #reset vel limit
+        print"Reset max vels for " + robot_name
+        max_rpm = 10.0
+        max_rad_s = max_rpm * 2*pi/60
+        print(robot_name + ": Limiting joints velocities at: "+ str(max_rpm) +"rpm = "+ str(max_rad_s) +"rad/s")
+        max_speed_steps = int(max_rpm/MX_VEL_UNIT)
+        self.setSpeed(2, max_speed_steps)
+        self.setSpeed(3, max_speed_steps)
+        self.setSpeed(4, max_speed_steps)
 
         #Set inital torque limits
-        print"Limiting torques for" + robot_name
+        print"Limiting torques for " + robot_name
         mx28_init_torque_limit = int(MX_TORQUE_STEPS/3)
         mx64_init_torque_limit = int(MX_TORQUE_STEPS/5)
-        ax_init_torque_limit = int(AX_TORQUE_STEPS/2)
+        ax_init_torque_limit = int(AX_TORQUE_STEPS/4)
 
-        self.setTorqueLimit(int(1), mx28_init_torque_limit)
-        self.setTorqueLimit(int(2), mx64_init_torque_limit)
-        self.setTorqueLimit(int(3), (mx64_init_torque_limit + 100)) #The 3rd servo needs more torque to compensate moving inertias
-        self.setTorqueLimit(int(4), mx28_init_torque_limit)
-        self.setTorqueLimit(int(5), ax_init_torque_limit)
-        self.setTorqueLimit(int(6), ax_init_torque_limit)
+        max_torque_msg = [[1, mx28_init_torque_limit], [2, mx64_init_torque_limit], [3, mx64_init_torque_limit + 100], [4, mx28_init_torque_limit], [5, ax_init_torque_limit], [6,ax_init_torque_limit]]
+        pos_msg = [[1, int(MX_POS_CENTER)], [2, int(1710)], [3, int(1577)], [4, int(2170)], [5, int(AX_POS_CENTER)], [6,int(AX_POS_CENTER)]]
 
-        #Go to initial position
-        print robot_name + ": Going to initialization position..."
-        self.setPosition(int(1), int(MX_POS_CENTER))
-        self.setPosition(int(4), int(2170))
-        self.setPosition(int(3), int(1577))
-        self.setPosition(int(2), int(1670))
-        self.setPosition(int(5), int(AX_POS_CENTER))
-        self.setPosition(int(6), int(AX_POS_CENTER))
+        self.syncSetTorque(max_torque_msg, pos_msg)
         time.sleep(3)
+
         print(robot_name + ": Closing gruppers")
-        self.setPosition(int(6), 10)
+        self.setPosition(int(6), 50)
+
+        #Limit joints velocities
+        max_rpm = 1.0
+        max_rad_s = max_rpm * 2*pi/60
+        print(robot_name + ": Limiting joints velocities at: "+ str(max_rpm) +"rpm = "+ str(max_rad_s) +"rad/s")
+        max_speed_steps = int(max_rpm/MX_VEL_UNIT)
+        self.setSpeed(2, max_speed_steps)
+        self.setSpeed(3, max_speed_steps)
+        self.setSpeed(4, max_speed_steps)
 
         print robot_name + " ready, setting up ROS topics..."
 
-        #Setupr velocities and positions vectors and messages
+        #Setup velocities and positions vectors and messages
         self.joints_poses = [0,0,0,0,0,0]
         self.joints_vels = [0,0,0,0,0]
         self.ee_closed = 0
@@ -67,20 +77,38 @@ class WindowxNode(ArbotiX):
         self.vels_to_pub.layout.data_offset = 0
 
         #ROS pubblisher for joint velocities and positions
-
         self.pos_pub = rospy.Publisher('/windowx_3links_'+ robot_name +'/joints_poses', Float32MultiArray, queue_size=1)
         self.vel_pub = rospy.Publisher('/windowx_3links_'+ robot_name +'/joints_vels', Float32MultiArray, queue_size=1)
-        self.pub_rate = rospy.Rate(160)
+        self.pub_rate = rospy.Rate(150)
 
         #ROS listener for control torues
         self.torque_sub = rospy.Subscriber('windowx_3links_'+ robot_name +'/torques', Float32MultiArray, self._torque_callback, queue_size=1)
         self.gripper_sub = rospy.Subscriber('windowx_3links_'+ robot_name +'/gripper', Bool, self._gripper_callback, queue_size=1)
+
+        #Topic for checkings
+        self.check_pub = rospy.Publisher('/torque_check', Float32MultiArray, queue_size=1)
+        #Initialize check message
+        self.check = Float32MultiArray()
+        self.check_layout = MultiArrayDimension('torque_check', 6, 0)
+        self.check.layout.dim = [self.check_layout]
+        self.check.layout.data_offset = 0
+
+        #ROS service for security stop
+        self.sec_stop_server = rospy.Service('windowx_3links_' + robot_name + '/security_stop', SecurityStop, self._sec_stop)
+
+        #Frequency estimation for written torques
+        self.cycle_count = 1
+        self.freq_sum = 0
+        self.iter_time = rospy.get_rostime()
+        self.old_time = self.iter_time
+        self.first_torque = True
 
         print"\nWindowx_3link_" + robot_name + " node created, whaiting for messages in:"
         print"      windowx_3links_" + robot_name + "/torque"
         print"Publishing joints' positions and velocities in:"
         print"      /windowx_3links_" + robot_name + "/joints_poses"
         print"      /windowx_3links_" + robot_name + "/joints_vels"
+        print"Scurity stop server running: windowx_3links_" + robot_name + "/security_stop"
         #Start publisher
         self.publish()
 
@@ -88,19 +116,25 @@ class WindowxNode(ArbotiX):
         """
         ROS callback
         """
+
+        #Initialize freqency estimation
+        if self.first_torque:
+            old_time = rospy.get_rostime()
+            self.first_torque = False
+
         goal_torque = msg.data
         goal_torque_steps = [0,0,0]
         direction = [0,0,0]
         #Setup torque steps
-        max1 = MX_TORQUE_STEPS/1.5
-        max2 = MX_TORQUE_STEPS/1.5
-        max3 = MX_TORQUE_STEPS
+        max1 = MX_TORQUE_STEPS/2
+        max2 = MX_TORQUE_STEPS/2
+        max3 = MX_TORQUE_STEPS/2
         goal_torque_steps[0] = min(int(MX64_TORQUE_UNIT * abs(goal_torque[1])), int(max1))
         goal_torque_steps[1] = min(int(MX64_TORQUE_UNIT * abs(goal_torque[2])), int(max2))
         goal_torque_steps[2] = min(int(MX28_TORQUE_UNIT * abs(goal_torque[3])), int(max3))
 
         if goal_torque_steps[0] == int(max1) or goal_torque_steps[1] == int(max2) or goal_torque_steps[2] == int(max3):
-            print("\nWARNING, R1 MAX TORQUE LIMIT REACHED FOR ID: ")
+            print("\nWARNING, "+ robot_name +" MAX TORQUE LIMIT REACHED FOR ID: ")
             if goal_torque_steps[0] == int(max1):
                 print("2")
             if goal_torque_steps[1] == int(max2):
@@ -122,44 +156,54 @@ class WindowxNode(ArbotiX):
         #ID 3 and 4
         for j in xrange(1,3):
             if goal_torque[1+j] >= 0:
-                direction[j] = 1*MX_POS_STEPS #CCW
+                direction[j] = MX_POS_STEPS - 10 #CCW
             else:
-                direction[j] = 0*MX_POS_STEPS #CW
+                direction[j] = 10 #CW
         # ID 2
         if goal_torque[1] >= 0:
-            direction[0] = 0*MX_POS_STEPS #CCW
+            direction[0] = 10 #CCW
         else:
-            direction[0] = 1*MX_POS_STEPS #CW
-        # print("Direction:")
-        # print(direction)
-        # print("\n")
-        #self._set_torque(goal_torque_steps, direction)
+            direction[0] = MX_POS_STEPS - 10 #CW
+
         torque_msg = [[2, goal_torque_steps[0]], [3, goal_torque_steps[1]], [4, goal_torque_steps[2]]]
         direction_msg = [[2, direction[0]], [3, direction[1]], [4, direction[2]]]
         self.syncSetTorque(torque_msg, direction_msg)
-        #read present loads:
+
+        #####read present loads and confront with applied torques: ##########
         # present_load = [0,0,0]
         # for ID in xrange(2,5):
         #     load = self.getLoad(ID)
-        #     if load > 1024:
+        #     if load > 1023:
         #         load = load-1024
         #     present_load[ID-2] = load
 
-        # print("\nSetted torque: ")
-        # print(goal_torque_steps)
-        # print("Present torque: ")
-        # print(present_load)
-        # print("error: ")
-        # print(map(operator.sub, goal_torque_steps, present_load))
-    #def _set_torque(self, goal_torque, direction):
-        #Set the torques
+        # self.check.data = [goal_torque_steps[0]/MX64_TORQUE_UNIT, goal_torque_steps[1]/MX64_TORQUE_UNIT, goal_torque_steps[2]/MX28_TORQUE_UNIT, present_load[0]/MX64_TORQUE_UNIT, present_load[1]/MX64_TORQUE_UNIT, present_load[2]/MX28_TORQUE_UNIT]
+        # self.check_pub.publish(self.check)
+
+        ####################################################################
+
+        #Update frequency estimation
+        # if not self.cycle_count % 100 == 0:
+        #     self.cycle_count = self.cycle_count + 1
+        #     self.actual_time = rospy.get_rostime()
+        #     tmp = self.actual_time - self.old_time
+        #     self.freq_sum = self.freq_sum + 1/tmp.to_sec()
+        #     self.old_time = rospy.get_rostime()
+        # else:
+        #     self.cycle_count = 1
+        #     self.actual_time = rospy.get_rostime()
+        #     tmp = self.actual_time - self.old_time
+        #     self.freq_sum = self.freq_sum + 1/tmp.to_sec()
+        #     print "\n" + robot_name + " :wrinting torques at: " + str(self.freq_sum/100) + " Hz"
+        #     self.freq_sum = 0
+        #     self.old_time = rospy.get_rostime()
 
     def _gripper_callback(self, msg):
         """
         ROS callback
         """
         if msg.data:
-            self.setPosition(int(6), 0)
+            self.setPosition(int(6), 50)
         else:
             self.setPosition(int(6), AX_POS_CENTER)
 
@@ -177,10 +221,10 @@ class WindowxNode(ArbotiX):
                 self.joints_poses[1] = MX_POS_UNIT * (int(MX_POS_CENTER + MX_POS_CENTER/2) - present_positions[0])
                 self.joints_poses[2] = MX_POS_UNIT * (present_positions[1] - int(MX_POS_CENTER + MX_POS_CENTER/2))
                 if self.joints_poses[2] > -0.45:
-                    rospy.logerr("Joint 2 near jacobian singularity. Shutting Down. Actual position: %frad, singularity in: -0.325rad", self.joints_poses[2])
-                    rospy.signal_shutdown("Joint 2 near jacobian singularity.")
+                    rospy.logerr(robot_name + ": Joint 2 near jacobian singularity. Shutting Down. Actual position: %frad, singularity in: -0.325rad", self.joints_poses[2])
+                    rospy.signal_shutdown(robot_name + ": Joint 2 near jacobian singularity.")
                 elif self.joints_poses[2] > -0.55: #I'm near the Jacobian sigularity => send warning
-                    rospy.logwarn("Joint 2 is approaching the jacobian singularity (actual position: %frad, singularity in: -0.325rad): Move away from here.", self.joints_poses[2])
+                    rospy.logwarn(robot_name + ": Joint 2 is approaching the jacobian singularity (actual position: %frad, singularity in: -0.325rad): Move away from here.", self.joints_poses[2])
 
                 self.joints_poses[3] = MX_POS_UNIT * (present_positions[2] - MX_POS_CENTER)
                 #AX 12 servos poses
@@ -212,18 +256,22 @@ class WindowxNode(ArbotiX):
                 self.vel_pub.publish(self.vels_to_pub)
                 self.pub_rate.sleep()
             else:
-                rospy.logwarn(robot_name + ": Lost packet.")
+                rospy.logwarn(robot_name + ": Lost packet at %fs", rospy.get_rostime().to_sec()) # If getting lost packets check return delay of servos or reduce publish rate for torques and/or joints vels and poses
+
+    def _sec_stop(self, req):
+        rospy.logerr(req.reason)
+        rospy.signal_shutdown(req.reason)
 
     def tourn_off_arm(self):
         """
         Disable all servos.
         """
-        print "Disabling servos please wait..."
-        self.setPosition(int(6), int(AX_POS_CENTER))
-        for j in xrange(1,6):
-            self.setTorqueLimit(j,0)
-        print"Servos disabled. Windowx_3link node closed."
+        print robot_name + ": Disabling servos please wait..."
+        max_torque_msg = [[1, 0], [2, 0], [3, 0], [4, 0], [5, 0], [6, int(AX_TORQUE_STEPS/4)]]
+        pos_msg = [[1, int(MX_POS_CENTER)], [2, int(1710)], [3, int(1577)], [4, int(2170)], [5, int(AX_POS_CENTER)], [6, int(AX_POS_CENTER)]]
+        self.syncSetTorque(max_torque_msg, pos_msg)
 
+        print robot_name + ": Servos disabled. Driver node closed."
 
 
 if __name__ == '__main__':

@@ -7,6 +7,7 @@ roslib
 message_generation
 cv_bridge
 std_msgs
+windowx_driver
 )
 
 ## Generate messages in the 'msg' folder
