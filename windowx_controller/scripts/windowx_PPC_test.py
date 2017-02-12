@@ -120,8 +120,8 @@ class WindowxController():
         self.torques2.layout.data_offset = 0
 
         #Torque compensation
-        self.tau_comp1 = np.matrix([[0.4, 0, 0], [0, 0.7, 0], [0,0,0.2]])
-        self.tau_comp2 = np.matrix([[0.3, 0, 0], [0, 0.6, 0], [0,0,0.15]])
+        self.tau_comp1 = np.matrix([[0.4], [0.7], [0.2]])
+        self.tau_comp2 = np.matrix([[0.3], [0.6], [0.15]])
         self.tau_old = np.array([[0,0,0]]).T
 
         #Initialize control_signals message
@@ -293,7 +293,8 @@ class WindowxController():
 
             #Compute moving direction for joints from position error
             v_1_des = np.dot(inv(J_1o), -e_s)
-            q1_dot_des = np.dot(r1_J_e_inv, v_1_des)
+            q1_dot_des = np.sign(np.dot(r1_J_e_inv, v_1_des))
+            q1_dot_des = np.matrix([[q1_dot_des[0,0],0,0],[0,q1_dot_des[1,0],0],[0,0,q1_dot_des[2,0]]])
 
             #Compute reference velocity
             tmp = np.dot(inv(self.ro_s), r_s)
@@ -339,7 +340,8 @@ class WindowxController():
 
             #Compute moving direction for joints from position error
             v_2_des = np.dot(inv(J_2o), -e_s)
-            q2_dot_des = np.dot(r2_J_e_inv, v_2_des)
+            q2_dot_des = np.sign(np.dot(r2_J_e_inv, v_2_des))
+            q2_dot_des = np.matrix([[q2_dot_des[0,0],0,0],[0,q2_dot_des[1,0],0],[0,0,q2_dot_des[2,0]]])
 
             #Compute reference velocity
             tmp = np.dot(inv(self.ro_s), r_s)
@@ -392,13 +394,13 @@ class WindowxController():
 
             control_torque_r1 = np.dot(r1_J_e.T, u_r1)
             control_torque_r2 = np.dot(r2_J_e.T, u_r2)
-            control_torque_r1 = control_torque_r1 + np.dot(self.tau_comp1, np.sign(q1_dot_des))
-            control_torque_r2 = control_torque_r2 + np.dot(self.tau_comp2, np.sign(q2_dot_des))
+            # control_torque_r1 = control_torque_r1 + np.dot(q1_dot_des, self.tau_comp1)
+            # control_torque_r2 = control_torque_r2 + np.dot(q2_dot_des, self.tau_comp2)
 
             if  norm(control_torque_r2) < 10 and norm(control_torque_r1) < 10:
                 #Create ROS message
-                self.torques1.data = [0.0, control_torque_r1[0,0], control_torque_r1[1,0], control_torque_r1[2,0], 0.0, self.r1_close_gripper]
-                self.torques2.data = [0.0, control_torque_r2[0,0], control_torque_r2[1,0], control_torque_r2[2,0], 0.0, self.r2_close_gripper]
+                self.torques1.data = [control_torque_r1[0,0], control_torque_r1[1,0], control_torque_r1[2,0], q1_dot_des[0,0], q1_dot_des[1,1], q1_dot_des[2,2]]
+                self.torques2.data = [control_torque_r2[0,0], control_torque_r2[1,0], control_torque_r2[2,0], q2_dot_des[0,0], q2_dot_des[1,1], q2_dot_des[2,2]]
                 self.r1_torque_pub.publish(self.torques1)
                 self.r2_torque_pub.publish(self.torques2)
             else:

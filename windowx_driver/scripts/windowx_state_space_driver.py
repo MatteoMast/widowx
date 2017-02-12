@@ -9,6 +9,7 @@ import rospy, roslib
 import operator
 import time
 from math import pi
+import numpy as np
 from arbotix_python.arbotix import ArbotiX
 from std_msgs.msg import Float32MultiArray, MultiArrayDimension, Bool
 from servos_parameters import *
@@ -112,6 +113,27 @@ class WindowxNode(ArbotiX):
         #Start publisher
         self.publish()
 
+    def _compute_currents(self, torques, directions):
+        """
+        Compute currents from torques
+        """
+        currents = [np.sign(torques[0])*0.0338*(torques[0]**2) + 0.7592*torques[0] + self._gain(np.sign(directions[0]),np.sign(torques[0]))*4.5*0.1605, \
+                    np.sign(torques[1])*0.0338*(torques[1]**2) + 0.7592*torques[1] + self._gain(np.sign(directions[1]),np.sign(torques[1]))*4.5*0.1605, \
+                    np.sign(torques[2])*0.2258*(torques[2]**2) + 0.4850*torques[2] + self._gain(np.sign(directions[2]),np.sign(torques[2]))*0.1514]
+        # currents = [np.sign(torques[0])*0.0338*(torques[0]**2) + 0.7592*torques[0] + directions[0]*2*0.1605, \
+        #             np.sign(torques[1])*0.0338*(torques[1]**2) + 0.7592*torques[1] + directions[1]*2*0.1605, \
+        #             np.sign(torques[2])*0.2258*(torques[2]**2) + 0.4850*torques[2] + directions[2]*2*0.1514]
+        return currents
+
+    def _gain(self, direc, tau):
+        """
+        Compute the gain for the costant term in current computation, arguments must be the signs of torque and direction
+        """
+        if direc == tau:
+            return direc
+        else:
+            return 2*direc
+
     def _torque_callback(self, msg):
         """
         ROS callback
@@ -122,50 +144,54 @@ class WindowxNode(ArbotiX):
             old_time = rospy.get_rostime()
             self.first_torque = False
 
-        goal_torque = msg.data
-        goal_torque_steps = [0,0,0]
+        goal_current = self._compute_currents(msg.data[0:3], msg.data[3:6])
+        goal_current_steps = [0,0,0]
         direction = [0,0,0]
+        # print("\nchecks:")
+        # print(goal_current)
+        # print(msg.data[0:3])
+        # print(msg.data[3:6])
         #Setup torque steps
         max1 = MX_TORQUE_STEPS/2
         max2 = MX_TORQUE_STEPS/2
         max3 = MX_TORQUE_STEPS/2
-        goal_torque_steps[0] = min(int(MX64_TORQUE_UNIT * abs(goal_torque[1])), int(max1))
-        goal_torque_steps[1] = min(int(MX64_TORQUE_UNIT * abs(goal_torque[2])), int(max2))
-        goal_torque_steps[2] = min(int(MX28_TORQUE_UNIT * abs(goal_torque[3])), int(max3))
+        goal_current_steps[0] = min(int(MX64_CURRENT_UNIT * abs(goal_current[0])), int(max1))
+        goal_current_steps[1] = min(int(MX64_CURRENT_UNIT * abs(goal_current[1])), int(max2))
+        goal_current_steps[2] = min(int(MX28_CURRENT_UNIT * abs(goal_current[2])), int(max3))
 
-        if goal_torque_steps[0] == int(max1) or goal_torque_steps[1] == int(max2) or goal_torque_steps[2] == int(max3):
+        if goal_current_steps[0] == int(max1) or goal_current_steps[1] == int(max2) or goal_current_steps[2] == int(max3):
             print("\nWARNING, "+ robot_name +" MAX TORQUE LIMIT REACHED FOR ID: ")
-            if goal_torque_steps[0] == int(max1):
+            if goal_current_steps[0] == int(max1):
                 print("2")
-            if goal_torque_steps[1] == int(max2):
+            if goal_current_steps[1] == int(max2):
                 print("3")
-            if goal_torque_steps[2] == int(max3):
+            if goal_current_steps[2] == int(max3):
                 print("4")
-            print("goal_torque:")
-            print(goal_torque)
-            print("goal_torque_steps:")
-            print(goal_torque_steps)
+            print("goal_current:")
+            print(goal_current)
+            print("goal_current_steps:")
+            print(goal_current_steps)
 
         # print("joints_poses")
         # print(self.joints_poses)
-        # print("goal_torque:")
-        # print(goal_torque)
-        # print("goal_torque_steps:")
-        # print(goal_torque_steps)
+        # print("goal_current:")
+        # print(goal_current)
+        # print("goal_current_steps:")
+        # print(goal_current_steps)
         #Setup directions------FOR ID 2 THE DIRECTION IS INVERTED!!!!!!
         #ID 3 and 4
         for j in xrange(1,3):
-            if goal_torque[1+j] >= 0:
+            if goal_current[j] >= 0:
                 direction[j] = MX_POS_STEPS - 10 #CCW
             else:
                 direction[j] = 10 #CW
         # ID 2
-        if goal_torque[1] >= 0:
+        if goal_current[0] >= 0:
             direction[0] = 10 #CCW
         else:
             direction[0] = MX_POS_STEPS - 10 #CW
 
-        torque_msg = [[2, goal_torque_steps[0]], [3, goal_torque_steps[1]], [4, goal_torque_steps[2]]]
+        torque_msg = [[2, goal_current_steps[0]], [3, goal_current_steps[1]], [4, goal_current_steps[2]]]
         direction_msg = [[2, direction[0]], [3, direction[1]], [4, direction[2]]]
         self.syncSetTorque(torque_msg, direction_msg)
 
@@ -177,7 +203,7 @@ class WindowxNode(ArbotiX):
         #         load = load-1024
         #     present_load[ID-2] = load
 
-        # self.check.data = [goal_torque_steps[0]/MX64_TORQUE_UNIT, goal_torque_steps[1]/MX64_TORQUE_UNIT, goal_torque_steps[2]/MX28_TORQUE_UNIT, present_load[0]/MX64_TORQUE_UNIT, present_load[1]/MX64_TORQUE_UNIT, present_load[2]/MX28_TORQUE_UNIT]
+        # self.check.data = [goal_current_steps[0]/MX64_CURRENT_UNIT, goal_current_steps[1]/MX64_CURRENT_UNIT, goal_current_steps[2]/MX28_CURRENT_UNIT, present_load[0]/MX64_CURRENT_UNIT, present_load[1]/MX64_CURRENT_UNIT, present_load[2]/MX28_CURRENT_UNIT]
         # self.check_pub.publish(self.check)
 
         ####################################################################
