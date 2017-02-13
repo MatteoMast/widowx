@@ -10,7 +10,7 @@ from windowx_msgs.msg import TargetConfiguration
 import numpy as np
 
 if __name__ == '__main__':
-    period = 50 #s
+    period = 30 #s
     omega = (2*pi)/period
     target_pose = TargetConfiguration()
     acc = [0,0,0]

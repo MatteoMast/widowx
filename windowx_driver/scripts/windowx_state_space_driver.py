@@ -32,11 +32,16 @@ class WindowxNode(ArbotiX):
         print"Reset max vels for " + robot_name
         max_rpm = 10.0
         max_rad_s = max_rpm * 2*pi/60
-        print(robot_name + ": Limiting joints velocities at: "+ str(max_rpm) +"rpm = "+ str(max_rad_s) +"rad/s")
         max_speed_steps = int(max_rpm/MX_VEL_UNIT)
         self.setSpeed(2, max_speed_steps)
         self.setSpeed(3, max_speed_steps)
         self.setSpeed(4, max_speed_steps)
+
+        #reset PID values
+        internal_PID = [32, 0, 0]
+        self.setPID(2, internal_PID[0], internal_PID[1], internal_PID[2])
+        self.setPID(3, internal_PID[0], internal_PID[1], internal_PID[2])
+        self.setPID(4, internal_PID[0], internal_PID[1], internal_PID[2])
 
         #Set inital torque limits
         print"Limiting torques for " + robot_name
@@ -61,6 +66,13 @@ class WindowxNode(ArbotiX):
         self.setSpeed(2, max_speed_steps)
         self.setSpeed(3, max_speed_steps)
         self.setSpeed(4, max_speed_steps)
+
+        #Setup PID parameters
+        internal_PID = [8, 0, 0]
+        self.setPID(2, internal_PID[0], internal_PID[1], internal_PID[2])
+        self.setPID(3, internal_PID[0], internal_PID[1], internal_PID[2])
+        self.setPID(4, internal_PID[0], internal_PID[1], internal_PID[2])
+
 
         print robot_name + " ready, setting up ROS topics..."
 
