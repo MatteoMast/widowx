@@ -10,7 +10,7 @@ from math import sin, cos, pi, sqrt, exp, log, fabs
 from windowx_msgs.msg import TargetConfiguration
 from std_msgs.msg import Float32MultiArray, MultiArrayDimension
 import numpy as np
-from numpy.linalg import inv, det, norm
+from numpy.linalg import inv, det, norm, pinv
 from windowx_arm import *
 from windowx_driver.srv import *
 import time
@@ -33,9 +33,13 @@ class WindowxController():
         self.omega_off1 = 0
         self.omega_off2 = 0
 
+        #Identity matrix
+        self.I = np.matrix([[1,0,0,0,0,0],[0,1,0,0,0,0],[0,0,1,0,0,0],[0,0,0,1,0,0],[0,0,0,0,1,0],[0,0,0,0,0,1]])
+
         #Control parameters
         self.gs = 0.05
-        self.gv = 7.0
+        self.gv = 6.8
+        self.C = np.matrix([[self.c1,0,0,0,0,0],[0,self.c1,0,0,0,0],[0,0,self.c1,0,0,0],[0,0,0,self.c2,0,0],[0,0,0,0,self.c2,0],[0,0,0,0,0,self.c2]])
 
         #Performance functions paramenters
         #position
@@ -52,13 +56,13 @@ class WindowxController():
         self.l_s_theta = 0.5;
 
         #Velocity
-        self.ro_v_0_x = 30.0;
-        self.ro_v_0_y = 30.0;
-        self.ro_v_0_theta = 50;
+        self.ro_v_0_x = 15.0;
+        self.ro_v_0_y = 15.0;
+        self.ro_v_0_theta = 15;
 
-        self.ro_v_inf_x = 20.0;
-        self.ro_v_inf_y = 20.0;
-        self.ro_v_inf_theta = 30;
+        self.ro_v_inf_x = 10.0;
+        self.ro_v_inf_y = 10.0;
+        self.ro_v_inf_theta = 10;
 
         self.l_v_x = 0.5;
         self.l_v_y = 0.5;
@@ -252,6 +256,8 @@ class WindowxController():
             self.obj_vel1 = np.dot(J_1o, r1_v_e)
             J_2o = np.matrix([[1,0,p_2o[1,0]],[0,1,-p_2o[0,0]],[0,0,1]])
             self.obj_vel2 = np.dot(J_2o, r2_v_e) #[(r1_v_e[0,0] + r2_v_e[0,0])/2, (r1_v_e[1,0] + r2_v_e[1,0])/2, r1_v_e[2,0]]
+            G = np.matrix([[1,0,-p_1o[1,0]],[0,1,p_1o[0,0]],[0,0,1],[1,0,-p_2o[1,0]],[0,1,p_2o[0,0]],[0,0,1]])
+            G_star = np.matrix([[1,0,p_1o[1,0],1,0,p_2o[1,0]],[0,1,-p_1o[0,0],0,1,-p_2o[0,0]],[0,0,1,0,0,1]]).T
             # print("\n obj_vels")
             # print(self.obj_vel2)
             # print(r2_array_vels)
@@ -303,6 +309,7 @@ class WindowxController():
 
             #Velocity errors
             e_v = self.obj_vel1 - v_o_des
+            e_v1 = e_v
             csi_v = np.dot(inv(self.ro_v), e_v)
             csi_v[0,0] = np.sign(csi_v[0,0]) * min(0.99, fabs(csi_v[0,0]))
             csi_v[1,0] = np.sign(csi_v[1,0]) * min(0.99, fabs(csi_v[1,0]))
@@ -350,6 +357,7 @@ class WindowxController():
 
             #Velocity errors
             e_v = self.obj_vel2 - v_o_des
+            e_v2 = e_v
             csi_v = np.dot(inv(self.ro_v), e_v)
             csi_v[0,0] = np.sign(csi_v[0,0]) * min(0.99, fabs(csi_v[0,0]))
             csi_v[1,0] = np.sign(csi_v[1,0]) * min(0.99, fabs(csi_v[1,0]))
@@ -382,18 +390,20 @@ class WindowxController():
 
             #Compute inputs
             #Object center of mass input
-            u_o1 = np.dot(np.dot(inv(self.ro_v), r_v1), eps_v1)
-            u_o2 = np.dot(np.dot(inv(self.ro_v), r_v2), eps_v2)
+            u_o1 = - self.gv * np.dot(np.dot(inv(self.ro_v), r_v1), eps_v1)
+            u_o2 = - self.gv * np.dot(np.dot(inv(self.ro_v), r_v2), eps_v2)
 
-            u_r1 = - self.c1 * self.gv * np.dot(J_1o.T, u_o1)
-            u_r2 = - self.c2 * self.gv * np.dot(J_2o.T, u_o2)
-            print("\nInputs:")
-            print(u_r1)
-            print(u_r2)
-            print("\n")
+            u_r1 = self.c1 * np.dot(J_1o.T, u_o1)
+            u_r2 = self.c2 * np.dot(J_2o.T, u_o2)
+            u = np.array([[u_r1[0,0]],[u_r1[1,0]],[u_r1[2,0]],[u_r2[0,0]],[u_r2[1,0]],[u_r2[2,0]]])
+            u_i = np.dot((self.I-0.5*np.dot(G_star,G.T)), u)
 
-            control_torque_r1 = np.dot(r1_J_e.T, u_r1)
-            control_torque_r2 = np.dot(r2_J_e.T, u_r2)
+            u_m = u - u_i
+
+            u_i_new = np.dot((self.I-0.5*np.dot(G_star,G.T)), u_m)
+
+            control_torque_r1 = np.dot(r1_J_e.T, u_m[0:3])
+            control_torque_r2 = np.dot(r2_J_e.T, u_m[3:6])
             # control_torque_r1 = control_torque_r1 + np.dot(q1_dot_des, self.tau_comp1)
             # control_torque_r2 = control_torque_r2 + np.dot(q2_dot_des, self.tau_comp2)
 
@@ -438,7 +448,16 @@ class WindowxController():
             #self.errors.data = [self.ro_v[0,0], e_v[0,0], self.ro_v[1,1], e_v[1,0], self.ro_v[2,2], e_v[2,0], self.ro_s[0,0], e_s[0,0], self.ro_s[1,1], e_s[1,0], self.ro_s[2,2], e_s[2,0]]
             #self.errors.data = [self.obj_pose1[0,0], self.obj_pose1[1,0], self.obj_pose1[2,0], r1_x_e[0,0], r1_x_e[1,0], r1_x_e[2,0], r2_x_e[0,0], r2_x_e[1,0], r2_x_e[2,0], self.obj_vel1[0,0], self.obj_vel1[1,0], self.obj_vel1[2,0]]
             #self.errors.data = [r1_v_e[0,0], r1_v_e[1,0], r1_v_e[2,0], r2_v_e[0,0], r2_v_e[1,0], r2_v_e[2,0]]
-            self.errors.data = [norm(u_o1), norm(u_o2), e_s1[0,0], e_s1[1,0], e_s1[2,0], e_s2[0,0], e_s2[1,0], e_s2[2,0]]
+            #self.errors.data = [r1_array_vels[1,0], r1_array_vels[2,0], r1_array_vels[3,0], r2_array_vels[1,0], r2_array_vels[2,0], r2_array_vels[3,0], e_v[0,0], e_v[1,0], e_v[2,0], e_s1[0,0], e_s1[1,0], e_s1[2,0], e_s2[0,0], e_s2[1,0], e_s2[2,0]]
+            self.errors.data = [e_s1[0,0], e_s1[1,0], e_s1[2,0], e_v1[0,0], e_v1[1,0], e_v1[2,0],  \
+                                e_s2[0,0], e_s2[1,0], e_s2[2,0], e_v2[0,0], e_v2[1,0], e_v2[2,0], \
+                                self.ro_v[0,0], self.ro_v[1,1], self.ro_v[2,2], \
+                                self.ro_v[0,0], self.ro_v[1,1], self.ro_v[2,2], \
+                                norm(u_o1), norm(u_o2), norm(u_i[0:3,0]), norm(u_i[3:6,0]), norm(u_i_new[0:3,0]), norm(u_i_new[3:6,0]), norm(u_r1), norm(u_r2), norm(u_m[0:3,0]), norm(u_m[3:6,0]), \
+                                norm(control_torque_r1), norm(control_torque_r2), \
+                                r1_array_vels[1,0], r1_array_vels[2,0], r1_array_vels[3,0], r2_array_vels[1,0], r2_array_vels[2,0], r2_array_vels[3,0]\
+                                ]
+            #self.errors.data = [norm(u_i[0:3]), norm(u_i[3:6])]
             self.errors_pub.publish(self.errors)
             self.pub_rate.sleep()
 

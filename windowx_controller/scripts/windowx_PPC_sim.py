@@ -24,37 +24,40 @@ class WindowxController():
         self.p1o_in_e1 = np.array([[-0.0755],[0],[0]])
         self.p2o_in_e2 = np.array([[-0.0755],[0],[0]])
 
+        #Identity matrix
+        self.I = np.matrix([[1,0,0,0,0,0],[0,1,0,0,0,0],[0,0,1,0,0,0],[0,0,0,1,0,0],[0,0,0,0,1,0],[0,0,0,0,0,1]])
+
         #Control parameters
-        self.gs = 0.5
-        self.gv = 50.0
+        self.gs = 0.05
+        self.gv = 3
 
         #Performance functions paramenters
 
         #position
-        self.ro_s_0_x = 0.1;
-        self.ro_s_0_y = 0.1;
-        self.ro_s_0_theta = 0.5;
+        self.ro_s_0_x = 0.01;
+        self.ro_s_0_y = 0.01;
+        self.ro_s_0_theta = 0.1;
 
-        self.ro_s_inf_x = 0.03;
-        self.ro_s_inf_y = 0.03;
-        self.ro_s_inf_theta = 0.25;
+        self.ro_s_inf_x = 0.005;
+        self.ro_s_inf_y = 0.005;
+        self.ro_s_inf_theta = 0.03;
 
-        self.l_s_x = 0.1;
-        self.l_s_y = 0.1;
-        self.l_s_theta = 0.1;
+        self.l_s_x = 0.5;
+        self.l_s_y = 0.5;
+        self.l_s_theta = 0.5;
 
         #Velocity
-        self.ro_v_0_x = 13.0;
-        self.ro_v_0_y = 13.0;
-        self.ro_v_0_theta = 15.0;
+        self.ro_v_0_x = 10.0;
+        self.ro_v_0_y = 10.0;
+        self.ro_v_0_theta = 12.0;
 
-        self.ro_v_inf_x = 7.0;
-        self.ro_v_inf_y = 7.0;
-        self.ro_v_inf_theta = 10.0;
+        self.ro_v_inf_x = 5.0;
+        self.ro_v_inf_y = 5.0;
+        self.ro_v_inf_theta = 7.0;
 
-        self.l_v_x = 0.1;
-        self.l_v_y = 0.1;
-        self.l_v_theta = 0.1;
+        self.l_v_x = 0.5;
+        self.l_v_y = 0.5;
+        self.l_v_theta = 0.5;
 
         #Initialize performance functions
         self.ro_s = np.matrix([[self.ro_s_0_x,0,0],[0,self.ro_s_0_y,0],[0,0, self.ro_s_0_theta]])
@@ -255,6 +258,8 @@ class WindowxController():
             self.obj_pose2[2,0] = (r2_x_e[2,0])
             p_o1 = self.obj_pose1[0:2] - r1_x_e[0:2]
             p_o2 = self.obj_pose2[0:2] - r2_x_e[0:2]
+            p_1o = -p_o1
+            p_2o = -p_o2
             # print("Po1:")
             # print(p_o1)
             # print("Po2:")
@@ -263,6 +268,8 @@ class WindowxController():
             self.obj_vel1 = np.dot(J_1o, r1_v_e)
             J_2o = np.matrix([[1,0,-p_o2[1,0]],[0,1,p_o2[0,0]],[0,0,1]])
             self.obj_vel2 = np.dot(J_2o, r2_v_e) #[(r1_v_e[0,0] + r2_v_e[0,0])/2, (r1_v_e[1,0] + r2_v_e[1,0])/2, r1_v_e[2,0]]
+            G = np.matrix([[1,0,-p_1o[1,0]],[0,1,p_1o[0,0]],[0,0,1],[1,0,-p_2o[1,0]],[0,1,p_2o[0,0]],[0,0,1]])
+            G_star = np.matrix([[1,0,p_1o[1,0],1,0,p_2o[1,0]],[0,1,-p_1o[0,0],0,1,-p_2o[0,0]],[0,0,1,0,0,1]]).T
 
             #Object-EE jacobians
             J_o1_inv = np.matrix([[1,0,-p_o1[1,0]],[0,1,p_o1[0,0]],[0,0,1]])
@@ -313,18 +320,20 @@ class WindowxController():
 
 
             #Compute inputs
-            tmp = np.dot(J_o1_inv, inv(self.ro_v))
-            tmp = np.dot(tmp, r_v)
-            tmp = np.dot(tmp, eps_v)
-            u_r1 = - self.c1 * self.gv * tmp
+            u_o = - self.gv * np.dot(np.dot(inv(self.ro_v), r_v), eps_v)
 
-            tmp = np.dot(J_o2_inv, inv(self.ro_v))
-            tmp = np.dot(tmp, r_v)
-            tmp = np.dot(tmp, eps_v)
-            u_r2 = - self.c2 * self.gv * tmp
+            u_r1 = self.c1 * np.dot(J_1o.T, u_o)
+            u_r2 = self.c2 * np.dot(J_2o.T, u_o)
 
-            control_torque_r1 = np.dot(r1_J_e.T, u_r1)
-            control_torque_r2 = np.dot(r2_J_e.T, u_r2)
+            u = np.array([[u_r1[0,0]],[u_r1[1,0]],[u_r1[2,0]],[u_r2[0,0]],[u_r2[1,0]],[u_r2[2,0]]])
+            u_i = np.dot((self.I-0.5*np.dot(G_star,G.T)), u)
+
+            u_m = u - u_i
+
+            u_i_new = np.dot((self.I-0.5*np.dot(G_star,G.T)), u_m)
+
+            control_torque_r1 = np.dot(r1_J_e.T, u_m[0:3])
+            control_torque_r2 = np.dot(r2_J_e.T, u_m[3:6])
             print("\n Torques: ")
             print(control_torque_r1)
             print(control_torque_r2)
@@ -334,7 +343,13 @@ class WindowxController():
             self.r1_torque_pub.publish(self.torques1)
             self.r2_torque_pub.publish(self.torques2)
             #self.errors.data = [self.obj_pose1[0,0], self.obj_pose1[1,0], self.obj_pose1[2,0], self.target_pose[0,0], self.target_pose[1,0], self.target_pose[2,0]]
-            self.errors.data = [r1_array_vels[1,0], r1_array_vels[2,0], r1_array_vels[3,0]]
+            # self.errors.data = [e_s[0,0], e_s[1,0], e_s[2,0], self.ro_s[0,0], self.ro_s[1,1], self.ro_s[2,2], \
+            #                     e_v[0,0], e_v[1,0], e_v[2,0], self.ro_v[0,0], self.ro_v[1,1], self.ro_v[2,2], \
+            #                     norm(u_o), norm(u_i[0:3,0]), norm(u_i[3:6,0]), norm(u_i_new[0:3,0]), norm(u_i_new[3:6,0]), norm(u_r1), norm(u_r2), norm(u_m[0:3,0]), norm(u_m[3:6,0]), \
+            #                     norm(control_torque_r1), norm(control_torque_r2), \
+            #                     r1_array_vels[1,0], r1_array_vels[2,0], r1_array_vels[3,0], r2_array_vels[1,0], r2_array_vels[2,0], r2_array_vels[3,0]\
+            #                     ]
+            self.errors.data = [norm(u_m[0:3,0]), norm(u_m[3:6,0])]
             self.errors_pub.publish(self.errors)
 
 
