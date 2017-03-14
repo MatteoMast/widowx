@@ -50,7 +50,7 @@ class WindowxNode(ArbotiX):
         ax_init_torque_limit = int(AX_TORQUE_STEPS/4)
 
         max_torque_msg = [[1, mx28_init_torque_limit], [2, mx64_init_torque_limit], [3, mx64_init_torque_limit + 100], [4, mx28_init_torque_limit], [5, ax_init_torque_limit], [6,ax_init_torque_limit]]
-        pos_msg = [[1, int(MX_POS_CENTER)], [2, int(1710)], [3, int(1577)], [4, int(2170)], [5, int(206)], [6,int(AX_POS_CENTER)]]
+        pos_msg = [[1, int(MX_POS_CENTER)], [2, int(1710)], [3, int(1577)], [4, int(2170)], [5, int(AX_POS_CENTER)], [6,int(AX_POS_CENTER)]]
 
         self.syncSetTorque(max_torque_msg, pos_msg)
         time.sleep(3)
@@ -129,9 +129,9 @@ class WindowxNode(ArbotiX):
         """
         Compute currents from torques
         """
-        currents = [np.sign(torques[0])*0.0338*(torques[0]**2) + 0.7592*torques[0] + self._gain(np.sign(directions[0]),np.sign(torques[0]))*4*0.1605, \
-                    np.sign(torques[1])*0.0338*(torques[1]**2) + 0.7592*torques[1] + self._gain(np.sign(directions[1]),np.sign(torques[1]))*4*0.1605, \
-                    np.sign(torques[2])*0.2258*(torques[2]**2) + 0.4850*torques[2] + self._gain(np.sign(directions[2]),np.sign(torques[2]))*0.1514]
+        currents = [np.sign(torques[0])*0.0338*(torques[0]**2) + 0.7592*torques[0], \
+                    np.sign(torques[1])*0.0338*(torques[1]**2) + 0.7592*torques[1], \
+                    np.sign(torques[2])*0.2258*(torques[2]**2) + 0.4850*torques[2] + self._gain(np.sign(directions[2]),np.sign(torques[2]))*1.5*0.1514]
         return currents
 
     def _gain(self, direc, tau):
@@ -150,6 +150,12 @@ class WindowxNode(ArbotiX):
 
         #Initialize freqency estimation
         if self.first_torque:
+            #Enable torque control in mx64 servos
+            self.enableTorqueControl(2)
+            self.enableTorqueControl(3)
+            #set torque limits
+            self.setTorqueLimit((2), int(MX_TORQUE_STEPS/2) + 1)
+            self.setTorqueLimit((3), int(MX_TORQUE_STEPS/2) + 1)
             old_time = rospy.get_rostime()
             self.first_torque = False
 
@@ -181,57 +187,25 @@ class WindowxNode(ArbotiX):
             print("goal_current_steps:")
             print(goal_current_steps)
 
-        # print("joints_poses")
-        # print(self.joints_poses)
-        # print("goal_current:")
-        # print(goal_current)
-        # print("goal_current_steps:")
-        # print(goal_current_steps)
         #Setup directions------FOR ID 2 THE DIRECTION IS INVERTED!!!!!!
-        #ID 3 and 4
-        for j in xrange(1,3):
-            if goal_current[j] >= 0:
-                direction[j] = MX_POS_STEPS - 10 #CCW
-            else:
-                direction[j] = 10 #CW
-        # ID 2
-        if goal_current[0] >= 0:
-            direction[0] = 10 #CCW
+        #ID 4
+        if goal_current[2] >= 0:
+            direction[2] = MX_POS_STEPS - 10 #CCW
         else:
-            direction[0] = MX_POS_STEPS - 10 #CW
+            direction[2] = 10 #CW
+        
+        # ID 1 and 2
+        if goal_current[0] >= 0:
+            goal_current_steps[0] = 1024 + goal_current_steps[0] #CW
 
-        torque_msg = [[2, goal_current_steps[0]], [3, goal_current_steps[1]], [4, goal_current_steps[2]]]
-        direction_msg = [[2, direction[0]], [3, direction[1]], [4, direction[2]]]
+        if goal_current[1] < 0:
+            goal_current_steps[1] = 1024 + goal_current_steps[1] #CW
+
+        #MX 28 torque message
+        torque_msg = [[4, goal_current_steps[2]]]
+        direction_msg = [[4, direction[2]]]
         self.syncSetTorque(torque_msg, direction_msg)
-
-        #####read present loads and confront with applied torques: ##########
-        # present_load = [0,0,0]
-        # for ID in xrange(2,5):
-        #     load = self.getLoad(ID)
-        #     if load > 1023:
-        #         load = load-1024
-        #     present_load[ID-2] = load
-
-        # self.check.data = [goal_current_steps[0]/MX64_CURRENT_UNIT, goal_current_steps[1]/MX64_CURRENT_UNIT, goal_current_steps[2]/MX28_CURRENT_UNIT, present_load[0]/MX64_CURRENT_UNIT, present_load[1]/MX64_CURRENT_UNIT, present_load[2]/MX28_CURRENT_UNIT]
-        # self.check_pub.publish(self.check)
-
-        ####################################################################
-
-        #Update frequency estimation
-        # if not self.cycle_count % 100 == 0:
-        #     self.cycle_count = self.cycle_count + 1
-        #     self.actual_time = rospy.get_rostime()
-        #     tmp = self.actual_time - self.old_time
-        #     self.freq_sum = self.freq_sum + 1/tmp.to_sec()
-        #     self.old_time = rospy.get_rostime()
-        # else:
-        #     self.cycle_count = 1
-        #     self.actual_time = rospy.get_rostime()
-        #     tmp = self.actual_time - self.old_time
-        #     self.freq_sum = self.freq_sum + 1/tmp.to_sec()
-        #     print "\n" + robot_name + " :wrinting torques at: " + str(self.freq_sum/100) + " Hz"
-        #     self.freq_sum = 0
-        #     self.old_time = rospy.get_rostime()
+        self.syncSetTorqueGoal([[2, goal_current_steps[0]], [3, goal_current_steps[1]]])
 
     def _gripper_callback(self, msg):
         """
@@ -302,6 +276,8 @@ class WindowxNode(ArbotiX):
         Disable all servos.
         """
         print robot_name + ": Disabling servos please wait..."
+        self.disableTorqueControl(2)
+        self.disableTorqueControl(3)
         max_torque_msg = [[1, 0], [2, 0], [3, 0], [4, 0], [5, 0], [6, int(AX_TORQUE_STEPS/4)]]
         pos_msg = [[1, int(MX_POS_CENTER)], [2, int(1710)], [3, int(1577)], [4, int(2170)], [5, int(AX_POS_CENTER)], [6, int(AX_POS_CENTER)]]
         self.syncSetTorque(max_torque_msg, pos_msg)

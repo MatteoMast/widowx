@@ -45,28 +45,28 @@ class WindowxController():
         #position
         self.ro_s_0_x = 0.05;
         self.ro_s_0_y = 0.05;
-        self.ro_s_0_theta = 0.7;
+        self.ro_s_0_theta = 0.4;
 
         self.ro_s_inf_x = 0.02;
         self.ro_s_inf_y = 0.02;
         self.ro_s_inf_theta = 0.2;
 
-        self.l_s_x = 0.5;
-        self.l_s_y = 0.5;
-        self.l_s_theta = 0.5;
+        self.l_s_x = 0.2;
+        self.l_s_y = 0.2;
+        self.l_s_theta = 0.2;
 
         #Velocity
-        self.ro_v_0_x = 15.0;
+        self.ro_v_0_x = 10.0;
         self.ro_v_0_y = 15.0;
-        self.ro_v_0_theta = 15;
+        self.ro_v_0_theta = 7.0;
 
-        self.ro_v_inf_x = 10.0;
+        self.ro_v_inf_x = 5.0;
         self.ro_v_inf_y = 10.0;
-        self.ro_v_inf_theta = 10;
+        self.ro_v_inf_theta = 3.0;
 
-        self.l_v_x = 0.5;
-        self.l_v_y = 0.5;
-        self.l_v_theta = 0.5;
+        self.l_v_x = 0.2;
+        self.l_v_y = 0.2;
+        self.l_v_theta = 0.2;
 
         #Initialize performance functions matrices
         self.ro_s = np.matrix([[self.ro_s_0_x,0,0],[0,self.ro_s_0_y,0],[0,0, self.ro_s_0_theta]])
@@ -93,6 +93,7 @@ class WindowxController():
         #rospy.wait_for_service('/windowx_3links_r1/security_stop')
         print("r1: security-stop ok ...")
         rospy.wait_for_service('/windowx_3links_r2/security_stop')
+        rospy.wait_for_service('/windowx_3links_r1/security_stop')
         print("r2: security-stop ok.")
         self.r1_sec_stop = rospy.ServiceProxy('/windowx_3links_r1/security_stop', SecurityStop)
         self.r2_sec_stop = rospy.ServiceProxy('/windowx_3links_r2/security_stop', SecurityStop)
@@ -178,8 +179,8 @@ class WindowxController():
         ROS callback to get the target configuration
         """
         #Restart performance functions to respect errors bounds
-        if False:#self.first_traj_msg:
-                self.start = rospy.get_rostime() - self.performance_start_step
+        if self.first_traj_msg:
+                self.start = rospy.get_rostime()
                 self.first_traj_msg = False
         self.target_pose = np.asarray(msg.pos)[np.newaxis].T
         self.target_vel = np.asarray(msg.vel)[np.newaxis].T
@@ -258,6 +259,14 @@ class WindowxController():
             self.obj_vel2 = np.dot(J_2o, r2_v_e) #[(r1_v_e[0,0] + r2_v_e[0,0])/2, (r1_v_e[1,0] + r2_v_e[1,0])/2, r1_v_e[2,0]]
             G = np.matrix([[1,0,-p_1o[1,0]],[0,1,p_1o[0,0]],[0,0,1],[1,0,-p_2o[1,0]],[0,1,p_2o[0,0]],[0,0,1]])
             G_star = np.matrix([[1,0,p_1o[1,0],1,0,p_2o[1,0]],[0,1,-p_1o[0,0],0,1,-p_2o[0,0]],[0,0,1,0,0,1]]).T
+
+            #GRASP MATRIX
+            G1 = np.matrix([[1,0,-p_1o[1,0]],[0,1,p_1o[0,0]],[0,0,1],[1,0,p_1o[1,0]],[0,1,-p_1o[0,0]],[0,0,1]])
+            G2 = np.matrix([[1,0,p_2o[1,0]],[0,1,-p_2o[0,0]],[0,0,1],[1,0,-p_2o[1,0]],[0,1,p_2o[0,0]],[0,0,1]])
+            G1_star = np.matrix([[1,0,p_1o[1,0],1,0,-p_1o[1,0]],[0,1,-p_1o[0,0],0,1,p_1o[0,0]],[0,0,1,0,0,1]]).T
+            G2_star = np.matrix([[1,0,-p_2o[1,0],1,0,p_2o[1,0]],[0,1,p_2o[0,0],0,1,-p_2o[0,0]],[0,0,1,0,0,1]]).T
+            J_2o_1 = np.matrix([[1,0,-p_1o[1,0]],[0,1,p_1o[0,0]],[0,0,1]])
+            J_1o_2 = np.matrix([[1,0,-p_2o[1,0]],[0,1,p_2o[0,0]],[0,0,1]])
             # print("\n obj_vels")
             # print(self.obj_vel2)
             # print(r2_array_vels)
@@ -280,10 +289,6 @@ class WindowxController():
             self.ro_v[0,0] = (self.ro_v_0_x - self.ro_v_inf_x) * exp(-self.l_v_x * (self.actual_time.to_sec())) + self.ro_v_inf_x
             self.ro_v[1,1] = (self.ro_v_0_y - self.ro_v_inf_y) * exp(-self.l_v_y * (self.actual_time.to_sec())) + self.ro_v_inf_y
             self.ro_v[2,2] = (self.ro_v_0_theta - self.ro_v_inf_theta) * exp(-self.l_v_theta * (self.actual_time.to_sec())) + self.ro_v_inf_theta
-
-
-
-
 
             #Compute errors and derived signals
             #r1
@@ -395,12 +400,26 @@ class WindowxController():
 
             u_r1 = self.c1 * np.dot(J_1o.T, u_o1)
             u_r2 = self.c2 * np.dot(J_2o.T, u_o2)
+
             u = np.array([[u_r1[0,0]],[u_r1[1,0]],[u_r1[2,0]],[u_r2[0,0]],[u_r2[1,0]],[u_r2[2,0]]])
             u_i = np.dot((self.I-0.5*np.dot(G_star,G.T)), u)
 
             u_m = u - u_i
 
             u_i_new = np.dot((self.I-0.5*np.dot(G_star,G.T)), u_m)
+
+            #Distributed
+            u_r1_2 = self.c2 * np.dot(J_1o_2.T, u_o2)
+            u_r2_1 = self.c1 * np.dot(J_2o_1.T, u_o1)
+
+            u1 = np.array([[u_r1[0,0]],[u_r1[1,0]],[u_r1[2,0]],[u_r2_1[0,0]],[u_r2_1[1,0]],[u_r2_1[2,0]]])
+            u2 = np.array([[u_r1_2[0,0]],[u_r1_2[1,0]],[u_r1_2[2,0]],[u_r2[0,0]],[u_r2[1,0]],[u_r2[2,0]]])
+            u_i_1 = np.dot((self.I-0.5*np.dot(G1_star,G1.T)), u1)
+            u_i_2 = np.dot((self.I-0.5*np.dot(G2_star,G2.T)), u2)
+
+            print("\ninternal forces distr:")
+            print(u_i_1)
+            print(u_i_2)
 
             control_torque_r1 = np.dot(r1_J_e.T, u_m[0:3])
             control_torque_r2 = np.dot(r2_J_e.T, u_m[3:6])
@@ -451,11 +470,16 @@ class WindowxController():
             #self.errors.data = [r1_array_vels[1,0], r1_array_vels[2,0], r1_array_vels[3,0], r2_array_vels[1,0], r2_array_vels[2,0], r2_array_vels[3,0], e_v[0,0], e_v[1,0], e_v[2,0], e_s1[0,0], e_s1[1,0], e_s1[2,0], e_s2[0,0], e_s2[1,0], e_s2[2,0]]
             self.errors.data = [e_s1[0,0], e_s1[1,0], e_s1[2,0], e_v1[0,0], e_v1[1,0], e_v1[2,0],  \
                                 e_s2[0,0], e_s2[1,0], e_s2[2,0], e_v2[0,0], e_v2[1,0], e_v2[2,0], \
+                                self.ro_s[0,0], self.ro_s[1,1], self.ro_s[2,2], \
                                 self.ro_v[0,0], self.ro_v[1,1], self.ro_v[2,2], \
-                                self.ro_v[0,0], self.ro_v[1,1], self.ro_v[2,2], \
-                                norm(u_o1), norm(u_o2), norm(u_i[0:3,0]), norm(u_i[3:6,0]), norm(u_i_new[0:3,0]), norm(u_i_new[3:6,0]), norm(u_r1), norm(u_r2), norm(u_m[0:3,0]), norm(u_m[3:6,0]), \
+                                norm(u_o1), norm(u_o2), norm(u_i[0:3,0]), norm(u_i[3:6,0]), norm(u_i_new[0:3,0]), norm(u_i_new[3:6,0]),\
+                                norm(u_r1), norm(u_r2), norm(u_m[0:3,0]), norm(u_m[3:6,0]), \
                                 norm(control_torque_r1), norm(control_torque_r2), \
-                                r1_array_vels[1,0], r1_array_vels[2,0], r1_array_vels[3,0], r2_array_vels[1,0], r2_array_vels[2,0], r2_array_vels[3,0]\
+                                r1_array_vels[1,0], r1_array_vels[2,0], r1_array_vels[3,0], r2_array_vels[1,0], r2_array_vels[2,0], r2_array_vels[3,0],\
+                                self.obj_pose1[0,0], self.obj_pose1[1,0], self.obj_pose1[2,0], self.obj_pose2[0,0], self.obj_pose2[1,0], self.obj_pose2[2,0],\
+                                self.target_pose[0,0], self.target_pose[1,0], self.target_pose[2,0],\
+                                control_torque_r1[0,0], control_torque_r1[1,0], control_torque_r1[2,0],\
+                                control_torque_r2[0,0], control_torque_r2[1,0], control_torque_r2[2,0]\
                                 ]
             #self.errors.data = [norm(u_i[0:3]), norm(u_i[3:6])]
             self.errors_pub.publish(self.errors)

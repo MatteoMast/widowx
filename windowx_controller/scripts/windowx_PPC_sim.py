@@ -29,31 +29,31 @@ class WindowxController():
 
         #Control parameters
         self.gs = 0.05
-        self.gv = 3
+        self.gv = 7
 
         #Performance functions paramenters
 
         #position
-        self.ro_s_0_x = 0.01;
-        self.ro_s_0_y = 0.01;
-        self.ro_s_0_theta = 0.1;
+        self.ro_s_0_x = 0.04;
+        self.ro_s_0_y = 0.04;
+        self.ro_s_0_theta = 0.2;
 
-        self.ro_s_inf_x = 0.005;
-        self.ro_s_inf_y = 0.005;
-        self.ro_s_inf_theta = 0.03;
+        self.ro_s_inf_x = 0.01;
+        self.ro_s_inf_y = 0.01;
+        self.ro_s_inf_theta = 0.05;
 
         self.l_s_x = 0.5;
         self.l_s_y = 0.5;
         self.l_s_theta = 0.5;
 
         #Velocity
-        self.ro_v_0_x = 10.0;
+        self.ro_v_0_x = 7.0;
         self.ro_v_0_y = 10.0;
-        self.ro_v_0_theta = 12.0;
+        self.ro_v_0_theta = 10.0;
 
-        self.ro_v_inf_x = 5.0;
+        self.ro_v_inf_x = 4.0;
         self.ro_v_inf_y = 5.0;
-        self.ro_v_inf_theta = 7.0;
+        self.ro_v_inf_theta = 5.0;
 
         self.l_v_x = 0.5;
         self.l_v_y = 0.5;
@@ -82,7 +82,7 @@ class WindowxController():
 
         #Initial pose, all joints will move to the initial target position, and initialization of pose and vels vectors
         #Here the target configuration is x_e = [x,y,orientation] x_e_dot x_e_ddot of the end effector wrt the inertial frame of the robot
-        self.target_pose = np.array([[0.385,0.13,0.0]]).T
+        self.target_pose = np.array([[0.385,0.09,0.0]]).T
         self.target_vel = np.array([[0.0,0.0,0.0]]).T
         self.target_acc = np.array([[0.0,0.0,0.0]]).T
         #Robot1
@@ -181,7 +181,7 @@ class WindowxController():
         """
         #Restart performance functions to respect errors bounds
         if self.first_traj_msg:
-                self.start = rospy.get_rostime() - self.performance_start_step
+                self.start = rospy.get_rostime()# - self.performance_start_step
                 self.first_traj_msg = False
 
         self.target_pose = np.asarray(msg.pos)[np.newaxis].T
@@ -313,11 +313,6 @@ class WindowxController():
             eps_v = np.array([[log((1 + csi_v[0,0])/(1 - csi_v[0,0])), log((1 + csi_v[1,0])/(1 - csi_v[1,0])), log((1 + csi_v[2,0])/(1 - csi_v[2,0]))]]).T
             r_v = np.matrix([[2/(1 - csi_v[0,0]**2),0,0],[0,2/(1 - csi_v[1,0]**2),0],[0,0, 2/(1 - csi_v[2,0]**2)]])
 
-            if fabs(max(csi_s)) >0.899999 or fabs(max(csi_v))>0.89999 :
-                print("\n csi_s_v:")
-                print(csi_s)
-                print(csi_v)
-
 
             #Compute inputs
             u_o = - self.gv * np.dot(np.dot(inv(self.ro_v), r_v), eps_v)
@@ -330,26 +325,47 @@ class WindowxController():
 
             u_m = u - u_i
 
+            print("\n\n\n u_i")
+            print(u_i)
+            print("\n u_r")
+            print(u_r1)
+            print(u_r2)
+            print("\n u_m")
+            print(u_m)
+
             u_i_new = np.dot((self.I-0.5*np.dot(G_star,G.T)), u_m)
 
             control_torque_r1 = np.dot(r1_J_e.T, u_m[0:3])
             control_torque_r2 = np.dot(r2_J_e.T, u_m[3:6])
-            print("\n Torques: ")
-            print(control_torque_r1)
-            print(control_torque_r2)
+            #Limit torques
+            control_torque_r1[0,0] = np.sign(control_torque_r1[0,0])*min(3, abs(control_torque_r1[0,0]))
+            control_torque_r1[1,0] = np.sign(control_torque_r1[1,0])*min(3, abs(control_torque_r1[1,0]))
+            control_torque_r1[2,0] = np.sign(control_torque_r1[2,0])*min(1.25, abs(control_torque_r1[2,0]))
+
+            control_torque_r2[0,0] = np.sign(control_torque_r2[0,0])*min(3, abs(control_torque_r2[0,0]))
+            control_torque_r2[1,0] = np.sign(control_torque_r2[1,0])*min(3, abs(control_torque_r2[1,0]))
+            control_torque_r2[2,0] = np.sign(control_torque_r2[2,0])*min(1.25, abs(control_torque_r2[2,0]))
+            # control_torque_r1 = np.dot(r1_J_e.T, u_r1)
+            # control_torque_r2 = np.dot(r2_J_e.T, u_r2)
+            # print("\n Torques: ")
+            # print(control_torque_r1)
+            # print(control_torque_r2)
             #Create ROS message
             self.torques1.data = [0.0, control_torque_r1[0,0], control_torque_r1[1,0], control_torque_r1[2,0], 0.0, self.r1_close_gripper]
             self.torques2.data = [0.0, control_torque_r2[0,0], control_torque_r2[1,0], control_torque_r2[2,0], 0.0, self.r2_close_gripper]
             self.r1_torque_pub.publish(self.torques1)
             self.r2_torque_pub.publish(self.torques2)
             #self.errors.data = [self.obj_pose1[0,0], self.obj_pose1[1,0], self.obj_pose1[2,0], self.target_pose[0,0], self.target_pose[1,0], self.target_pose[2,0]]
-            # self.errors.data = [e_s[0,0], e_s[1,0], e_s[2,0], self.ro_s[0,0], self.ro_s[1,1], self.ro_s[2,2], \
-            #                     e_v[0,0], e_v[1,0], e_v[2,0], self.ro_v[0,0], self.ro_v[1,1], self.ro_v[2,2], \
-            #                     norm(u_o), norm(u_i[0:3,0]), norm(u_i[3:6,0]), norm(u_i_new[0:3,0]), norm(u_i_new[3:6,0]), norm(u_r1), norm(u_r2), norm(u_m[0:3,0]), norm(u_m[3:6,0]), \
-            #                     norm(control_torque_r1), norm(control_torque_r2), \
-            #                     r1_array_vels[1,0], r1_array_vels[2,0], r1_array_vels[3,0], r2_array_vels[1,0], r2_array_vels[2,0], r2_array_vels[3,0]\
-            #                     ]
-            self.errors.data = [norm(u_m[0:3,0]), norm(u_m[3:6,0])]
+            self.errors.data = [e_s[0,0], e_s[1,0], e_s[2,0], self.ro_s[0,0], self.ro_s[1,1], self.ro_s[2,2], \
+                                e_v[0,0], e_v[1,0], e_v[2,0], self.ro_v[0,0], self.ro_v[1,1], self.ro_v[2,2], \
+                                norm(u_o), norm(u_i[0:3,0]), norm(u_i[3:6,0]), norm(u_i_new[0:3,0]), norm(u_i_new[3:6,0]), norm(u_r1), norm(u_r2), norm(u_m[0:3,0]), norm(u_m[3:6,0]), \
+                                norm(control_torque_r1), norm(control_torque_r2), \
+                                r1_array_vels[1,0], r1_array_vels[2,0], r1_array_vels[3,0], r2_array_vels[1,0], r2_array_vels[2,0], r2_array_vels[3,0],\
+                                self.obj_pose1[0,0], self.obj_pose1[1,0], self.obj_pose1[2,0],\
+                                self.target_pose[0,0], self.target_pose[1,0], self.target_pose[2,0],\
+                                control_torque_r1[0,0], control_torque_r1[1,0], control_torque_r1[2,0],\
+                                control_torque_r2[0,0], control_torque_r2[1,0], control_torque_r2[2,0]]
+            #self.errors.data = [norm(u_m[0:3,0]), norm(u_m[3:6,0]), norm(u_r1), norm(u_r2), control_torque_r1[0,0], control_torque_r1[1,0], control_torque_r1[2,0], control_torque_r2[0,0], control_torque_r2[1,0], control_torque_r2[2,0]]
             self.errors_pub.publish(self.errors)
 
 

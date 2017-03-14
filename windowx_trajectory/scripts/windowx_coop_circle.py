@@ -10,16 +10,16 @@ from windowx_msgs.msg import TargetConfiguration
 import numpy as np
 
 if __name__ == '__main__':
-    period = 20 #s
+    period = 35 #s
     omega = (2*pi)/period
     target_pose = TargetConfiguration()
     acc = [0,0,0]
     vel = [0,0,0]
-    pos_0 = [0.385,0.12,0]#[0.301,0.11,0]
+    pos_0 = [0.301,0.11,0]#[0.385,0.10,0]#
     pos = pos_0
     amplitude_x = 0.05
     amplitude_y = 0.05
-    amplitude_theta = 0.174 #pi/30
+    amplitude_theta = pi/30
     #Iitialize the node
     print("Initializing node...")
     rospy.init_node('windowx_trajectory')
