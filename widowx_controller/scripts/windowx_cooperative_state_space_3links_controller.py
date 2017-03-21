@@ -10,7 +10,7 @@ import rospy, roslib
 from windowx_msgs.msg import TargetConfiguration
 from std_msgs.msg import Float32MultiArray, MultiArrayDimension
 from windowx_driver.srv import *
-#Math stuff
+#Math imports
 from math import sin, cos, atan2, pi, sqrt
 from numpy.linalg import inv, det, norm, pinv
 import numpy as np
@@ -18,10 +18,6 @@ import numpy as np
 from windowx_arm import *
 #widowx dynamics and kinematics class
 from widowx_compute_dynamics import WidowxDynamics
-
-# Do I need this ?
-import time
-import cv2
 
 
 class WindowxController():

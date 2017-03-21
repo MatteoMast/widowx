@@ -4,13 +4,15 @@
 Start PPC controller for manuvering windowx arms through the v-rep simulator.
 """
 
-import cv2
+#Ros handlers services and messages
 import rospy, roslib
-from math import sin, cos, pi, sqrt, exp, log, fabs
 from windowx_msgs.msg import TargetConfiguration
 from std_msgs.msg import Float32MultiArray, MultiArrayDimension
+#Math imports
+from math import sin, cos, pi, sqrt, exp, log, fabs
 import numpy as np
 from numpy.linalg import inv, det, norm
+#Arm parameters
 from windowx_arm import *
 #widowx dynamics and kinematics class
 from widowx_compute_dynamics import WidowxDynamics

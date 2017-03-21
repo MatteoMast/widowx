@@ -4,18 +4,20 @@
 Start ROS node to pubblish torques for manuvering windowx arm through the v-rep simulator.
 """
 
-import time
-import cv2
+#Ros handlers services and messages
 import rospy, roslib
-from math import sin, cos, atan2, pi, sqrt
 from windowx_msgs.msg import TargetConfiguration
 from std_msgs.msg import Float32MultiArray, MultiArrayDimension
+from windowx_driver.srv import *
+#Math imports
+from math import sin, cos, atan2, pi, sqrt
 from numpy.linalg import inv, det, norm, pinv
 import numpy as np
+#Arm parameters
 from windowx_arm import *
-from windowx_driver.srv import *
 #widowx dynamics and kinematics class
 from widowx_compute_dynamics import WidowxDynamics
+
 
 
 class WindowxController():

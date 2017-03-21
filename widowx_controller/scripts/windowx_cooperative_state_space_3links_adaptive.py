@@ -9,7 +9,7 @@ import rospy, roslib
 from windowx_msgs.msg import TargetConfiguration
 from std_msgs.msg import Float32MultiArray, MultiArrayDimension
 from windowx_driver.srv import *
-#Math stuff
+#Math imports
 from math import sin, cos, atan2, pi, sqrt
 from numpy.linalg import inv, det, norm, pinv
 import numpy as np

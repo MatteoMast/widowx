@@ -5,13 +5,15 @@ Start ROS node to pubblish torques for manuvering windowx arm in V-REP using a R
 controller without Force/Torque Information on its non adaptive version.
 """
 
-import cv2
+#Ros handlers services and messages
 import rospy, roslib
-from math import sin, cos, pi, sqrt
 from windowx_msgs.msg import TargetConfiguration
 from std_msgs.msg import Float32MultiArray, MultiArrayDimension
+#Math imports
+from math import sin, cos, atan2, pi, sqrt
+from numpy.linalg import inv, det, norm, pinv
 import numpy as np
-from numpy.linalg import inv
+#Arm parameters
 from windowx_arm import *
 #widowx dynamics and kinematics class
 from widowx_compute_dynamics import WidowxDynamics
