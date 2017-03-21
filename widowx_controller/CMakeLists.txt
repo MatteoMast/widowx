@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(windowx_controller)
+project(widowx_controller)
 
 find_package(catkin REQUIRED COMPONENTS
 rospy
@@ -7,7 +7,7 @@ roslib
 message_generation
 cv_bridge
 std_msgs
-windowx_driver
+widowx_driver
 )
 
 ## Generate messages in the 'msg' folder

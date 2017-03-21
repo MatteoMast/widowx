@@ -1,26 +1,26 @@
 #!/usr/bin/env python
 
 """
-Start ROS node to pubblish torques for manuvering windowx arm through the v-rep simulator.
+Start ROS node to pubblish torques for manuvering widowx arm through the v-rep simulator.
 """
 
 #Ros handlers services and messages
 import rospy, roslib
-from windowx_msgs.msg import TargetConfiguration
+from widowx_msgs.msg import TargetConfiguration
 from std_msgs.msg import Float32MultiArray, MultiArrayDimension
-from windowx_driver.srv import *
+from widowx_driver.srv import *
 #Math imports
 from math import sin, cos, atan2, pi, sqrt
 from numpy.linalg import inv, det, norm, pinv
 import numpy as np
 #Arm parameters
-from windowx_arm import *
+from widowx_arm import *
 #widowx dynamics and kinematics class
 from widowx_compute_dynamics import WidowxDynamics
 
 
 
-class WindowxController():
+class WidowxController():
     """Class to compute and pubblish joints torques"""
     def __init__(self):
         #Object to ee vectors in ee frame
@@ -115,7 +115,7 @@ class WindowxController():
         self.obj_pose_call = False
         self.obj_vel_call = False
 
-        print("\nWindowX controller node created")
+        print("\nWidowX controller node created")
         print("\nWaiting for target position, velocity and acceleration...")
 
     #SENSING CALLBACKS
@@ -369,11 +369,11 @@ class WindowxController():
 
 if __name__ == '__main__':
     #Iitialize the node
-    rospy.init_node('windowx_controller')
-    #Create windowx controller object
-    wc = WindowxController()
+    rospy.init_node('widowx_controller')
+    #Create widowx controller object
+    wc = WidowxController()
 
     try:
         rospy.spin()
     except KeyboardInterrupt:
-        print "Shutting down ROS WindowX controller node"
+        print "Shutting down ROS WidowX controller node"

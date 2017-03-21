@@ -1,43 +1,37 @@
 #!/usr/bin/env python
 
 """
-Start ROS node to pubblish torques for manuvering windowx arm through the v-rep simulator.
+Start ROS node to pubblish torques for manuvering widowx arm through the v-rep simulator.
 """
 
 import cv2
 import rospy, roslib
 from math import sin, cos
-from windowx_msgs.msg import TargetConfiguration
+from widowx_msgs.msg import TargetConfiguration
 from std_msgs.msg import Float32MultiArray, MultiArrayDimension
 import numpy as np
-from windowx_arm import *
+from widowx_arm import *
 
-class WindowxController():
+class WidowxController():
     """Class to compute and pubblish joints torques"""
     def __init__(self):
         #initialize pose, velocity listeners and torques publisher
-        self.pose_sub = rospy.Subscriber('/windowx_3links_r1/joints_poses', Float32MultiArray, self._pose_callback, queue_size=1)
-        self.vel_sub = rospy.Subscriber('/windowx_3links_r1/joints_vels', Float32MultiArray, self._vel_callback, queue_size=1)
-        self.target_sub = rospy.Subscriber('/windowx_3links_r1/target_conf', TargetConfiguration, self._target_callback, queue_size=10)
-        self.torque_pub = rospy.Publisher('/windowx_3links_r1/torques', Float32MultiArray, queue_size=1)
-        self.pub_rate = rospy.Rate(150)
+        self.pose_sub = rospy.Subscriber('/joints_poses', Float32MultiArray, self._pose_callback, queue_size=1)
+        self.vel_sub = rospy.Subscriber('/joints_vels', Float32MultiArray, self._vel_callback, queue_size=1)
+        self.target_sub = rospy.Subscriber('/widowx_3links/target_conf', TargetConfiguration, self._target_callback, queue_size=10)
+        self.torque_pub = rospy.Publisher('/torques', Float32MultiArray, queue_size=1)
         #Initial pose, all joints will move to 0 position, and initialization of pose and vels vectors
         #Here the target configuration is x_e = [x,y,orientation] x_e_dot x_e_dotdot of the end effector wrt the inertial frame of the robot
         self.target_pose = np.array([[0.3,0.1,0.0]]).T
         self.target_vel = np.array([[0.0,0.0,0.0]]).T
         self.target_acc = np.array([[0.0,0.0,0.0]]).T
-        self.eI = np.array([[0.0, 0.0, 0.0]]).T
-        #Friction matrices
-        self.Fs = np.matrix([[0.0843,0,0],[0,0.0843,0],[0,0, 0.0078]])
-        self.Fv = np.matrix([[0.0347,0,0],[0,0.0347,0],[0,0, 0.0362]])
 
         self.joints_poses = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
         self.joints_vels =  [0.0, 0.0, 0.0, 0.0, 0.0]
+        self.close_gripper = 0
         #Control Kd and Kp
-        self.KD = np.matrix([[30, 0, 0], [0, 30, 0], [0, 0, 50]])
-        self.KP = np.matrix([[750, 0, 0],[0, 750, 0], [0, 0, 1000]])
-        #self.KI = np.matrix([[500, 0, 0],[0, 500, 0], [0, 0, 700]])
-        self.KI = np.matrix([[0, 0, 0],[0, 0, 0], [0, 0, 0]])
+        self.KD = np.matrix([[15, 0, 0], [0, 15, 0], [0, 0, 15]])
+        self.KP = np.matrix([[100, 0, 0],[0, 100, 0], [0, 0, 100]])
         #Initialize torque message
         self.torques = Float32MultiArray()
         self.torques_layout = MultiArrayDimension('control_torques', 6, 0)
@@ -46,15 +40,14 @@ class WindowxController():
         #Challer check
         self.pose_call = False
         self.vel_call = False
-        print("\nWindowX controller node created")
+        print("\nWidowX controller node created")
         print("\nWaiting for target position, velocity and acceleration in:")
-        print("     /windowx_2links/target_conf")
+        print("     /widowx_2links/target_conf")
         print("Reading current position and velocity from:")
-        print("     /windowx_2links/joints_poses")
-        print("     /windowx_2links/joints_vels")
+        print("     /widowx_2links/joints_poses")
+        print("     /widowx_2links/joints_vels")
         print("Publishing torques in:")
-        print("     /windowx_2links/torques")
-        self.compute_torques()
+        print("     /widowx_2links/torques")
 
 
     def _pose_callback(self, msg):
@@ -62,35 +55,46 @@ class WindowxController():
         ROS callback to get the joint poses
         """
         self.joints_poses = msg.data
-        #self.compute_torques('pose')
+        self.compute_torques('pose')
 
     def _vel_callback(self, msg):
         """
         ROS callback to get the joint velocities
         """
         self.joints_vels = msg.data
-        #self.compute_torques('vel')
+        self.compute_torques('vel')
 
     def _target_callback(self, msg):
         """
         ROS callback to get the target position
         """
-        self.target_pose = np.asarray(msg.pos)[np.newaxis].T
-        self.target_vel = np.asarray(msg.vel)[np.newaxis].T
-        self.target_acc = np.asarray(msg.acc)[np.newaxis].T
+        if len(msg.pos) == 3:
+            self.target_pose = np.asarray(msg.pos)[np.newaxis].T
+            self.target_vel = np.asarray(msg.vel)[np.newaxis].T
+            self.target_acc = np.asarray(msg.acc)[np.newaxis].T
+        elif len(msg.pos) == 4:
+            self.target_pose = np.asarray(msg.pos[0:3])[np.newaxis].T
+            self.target_vel = np.asarray(msg.vel)[np.newaxis].T
+            self.target_acc = np.asarray(msg.acc)[np.newaxis].T
+            self.close_gripper = msg.pos[3]
+        else:
+            print "WRONG DIMENSION FOR THE RECIVED TARGET MESSAGE"
 
         # print("\nGoing to:")
         # print("Pos: \n" + str(self.target_pose))
         # print("Vel: \n" + str(self.target_vel))
         # print("Acc: \n" + str(self.target_acc))
 
-    def compute_torques(self):
+    def compute_torques(self, caller):
         """
         Compute and pubblish torques values for 3rd and 4th joints
         """
-
+        if caller == 'pose':
+            self.pose_call = True
+        if caller == 'vel':
+            self.vel_call = True
         #If both vels and poses has called compute torques
-        while not rospy.is_shutdown():
+        if self.pose_call and self.vel_call:
             #Reset checkers
             self.pose_call = False
             self.vel_call = False
@@ -99,6 +103,7 @@ class WindowxController():
             # print "    ".join(str(n) for n in self.joints_vels)
             # print "    ".join(str(n) for n in self.joints_poses)
             #Compute B g and C matrices
+            #vels_list = self.joints_vels
             array_vels = np.asarray(self.joints_vels)[np.newaxis].T
             array_poses = np.asarray(self.joints_poses)[np.newaxis].T
             # print("array_vels")
@@ -120,8 +125,6 @@ class WindowxController():
             #Position and velocities errors
             err_vels = v_e - self.target_vel
             err_poses = x_e - self.target_pose
-            self.eI = self.eI + err_poses/60
-
             print("\nvelocity error:")
             print(err_vels)
             print("position error:")
@@ -143,7 +146,7 @@ class WindowxController():
             # print(C)
             # print(g)
             #Compute control input
-            control_from_errors = self.target_acc -np.dot(self.KD, err_vels) - np.dot(self.KP, err_poses) - np.dot(self.KI, self.eI)
+            control_from_errors = self.target_acc -np.dot(self.KD, err_vels) - np.dot(self.KP, err_poses)
             u = g + np.dot(C, v_e) + np.dot(M, control_from_errors)
             # print("Derivative contribution: ")
             # print(-np.dot(self.KD, err_vels))
@@ -153,26 +156,21 @@ class WindowxController():
             # print(u)
             J_e_tr = J_e.T
             control_torque = np.dot(J_e_tr, u)
-            #Add static and viscous friction:
-            control_torque = control_torque + np.dot(self.Fs, np.sign(array_vels[1:4])) + np.dot(self.Fv, array_vels[1:4])
-            # print("Torques:")
-            # print(control_torque)
-            # print("Friction Torques: ")
-            # print(np.dot(self.Fs, np.sign(array_vels[1:4])) + np.dot(self.Fv, array_vels[1:4]))
+            print("Torques: ")
+            print(control_torque)
             #Create ROS message
-            self.torques.data = [0.0, control_torque[0], control_torque[1], control_torque[2], 0.0, 0.0]
+            self.torques.data = [0.0, control_torque[0], control_torque[1], control_torque[2], 0.0, self.close_gripper]
             self.torque_pub.publish(self.torques)
-            self.pub_rate.sleep()
 
 
 
 if __name__ == '__main__':
     #Iitialize the node
-    rospy.init_node('windowx_controller')
-    #Create windowx controller object
-    wc = WindowxController()
+    rospy.init_node('widowx_controller')
+    #Create widowx controller object
+    wc = WidowxController()
 
     try:
         rospy.spin()
     except KeyboardInterrupt:
-        print "Shutting down ROS WindowX controller node"
+        print "Shutting down ROS WidowX controller node"

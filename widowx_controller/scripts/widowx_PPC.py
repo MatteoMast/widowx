@@ -1,26 +1,26 @@
 #!/usr/bin/env python
 
 """
-Start PPC controller for manuvering windowx arms through the ArbotiX board simulator.
+Start PPC controller for manuvering widowx arms through the ArbotiX board simulator.
 """
 
 #Ros handlers services and messages
 import rospy, roslib
-from windowx_msgs.msg import TargetConfiguration
-from windowx_driver.srv import *
+from widowx_msgs.msg import TargetConfiguration
+from widowx_driver.srv import *
 from std_msgs.msg import Float32MultiArray, MultiArrayDimension
 #Math imports
 from math import sin, cos, pi, sqrt, exp, log, fabs
 import numpy as np
 from numpy.linalg import inv, det, norm, pinv
 #Arm parameters
-#from windowx_arm import *
+#from widowx_arm import *
 #widowx dynamics and kinematics class
 from widowx_compute_dynamics import WidowxDynamics
 #For sleeps
 import time
 
-class WindowxController():
+class WidowxController():
     """Class to compute and pubblish joints torques"""
     def __init__(self):
         #Load-share coefficients
@@ -82,13 +82,13 @@ class WindowxController():
 
         #initialize pose, velocity listeners and torques publishers
         #Robot1
-        self.r1_pose_sub = rospy.Subscriber('/windowx_3links_r1/joints_poses', Float32MultiArray, self._r1_pose_callback, queue_size=1)
-        self.r1_vel_sub = rospy.Subscriber('/windowx_3links_r1/joints_vels', Float32MultiArray, self._r1_vel_callback, queue_size=1)
-        self.r1_torque_pub = rospy.Publisher('/windowx_3links_r1/torques', Float32MultiArray, queue_size=1)
+        self.r1_pose_sub = rospy.Subscriber('/widowx_3links_r1/joints_poses', Float32MultiArray, self._r1_pose_callback, queue_size=1)
+        self.r1_vel_sub = rospy.Subscriber('/widowx_3links_r1/joints_vels', Float32MultiArray, self._r1_vel_callback, queue_size=1)
+        self.r1_torque_pub = rospy.Publisher('/widowx_3links_r1/torques', Float32MultiArray, queue_size=1)
         #Robot2
-        self.r2_pose_sub = rospy.Subscriber('/windowx_3links_r2/joints_poses', Float32MultiArray, self._r2_pose_callback, queue_size=1)
-        self.r2_vel_sub = rospy.Subscriber('/windowx_3links_r2/joints_vels', Float32MultiArray, self._r2_vel_callback, queue_size=1)
-        self.r2_torque_pub = rospy.Publisher('/windowx_3links_r2/torques', Float32MultiArray, queue_size=1)
+        self.r2_pose_sub = rospy.Subscriber('/widowx_3links_r2/joints_poses', Float32MultiArray, self._r2_pose_callback, queue_size=1)
+        self.r2_vel_sub = rospy.Subscriber('/widowx_3links_r2/joints_vels', Float32MultiArray, self._r2_vel_callback, queue_size=1)
+        self.r2_torque_pub = rospy.Publisher('/widowx_3links_r2/torques', Float32MultiArray, queue_size=1)
         #Trajectory listener
         self.target_sub = rospy.Subscriber('/object/target_conf', TargetConfiguration, self._target_callback, queue_size=1)
         #Signal check publisher
@@ -98,13 +98,13 @@ class WindowxController():
 
         #Security signal service
         print("\nChecking security-stop service availability ... ...")
-        #rospy.wait_for_service('/windowx_3links_r1/security_stop')
+        #rospy.wait_for_service('/widowx_3links_r1/security_stop')
         print("r1: security-stop ok ...")
-        rospy.wait_for_service('/windowx_3links_r2/security_stop')
-        rospy.wait_for_service('/windowx_3links_r1/security_stop')
+        rospy.wait_for_service('/widowx_3links_r2/security_stop')
+        rospy.wait_for_service('/widowx_3links_r1/security_stop')
         print("r2: security-stop ok.")
-        self.r1_sec_stop = rospy.ServiceProxy('/windowx_3links_r1/security_stop', SecurityStop)
-        self.r2_sec_stop = rospy.ServiceProxy('/windowx_3links_r2/security_stop', SecurityStop)
+        self.r1_sec_stop = rospy.ServiceProxy('/widowx_3links_r1/security_stop', SecurityStop)
+        self.r2_sec_stop = rospy.ServiceProxy('/widowx_3links_r2/security_stop', SecurityStop)
 
         #Initial pose, all joints will move to the initial target position, and initialization of pose and vels vectors
         #Here the target configuration is x_e = [x,y,orientation] x_e_dot x_e_ddot of the end effector wrt the inertial frame of the robot
@@ -153,7 +153,7 @@ class WindowxController():
         self.performance_start_step = rospy.Duration.from_sec(2.0)
 
         time.sleep(1)
-        print("\nWindowX controller node created")
+        print("\nWidowX controller node created")
         print("\nWaiting for target position, velocity and acceleration...")
         self.compute_torques()
 
@@ -485,11 +485,11 @@ class WindowxController():
 
 if __name__ == '__main__':
     #Iitialize the node
-    rospy.init_node('windowx_controller')
-    #Create windowx controller object
-    wc = WindowxController()
+    rospy.init_node('widowx_controller')
+    #Create widowx controller object
+    wc = WidowxController()
 
     try:
         rospy.spin()
     except KeyboardInterrupt:
-        print "Shutting down ROS WindowX controller node"
+        print "Shutting down ROS WidowX controller node"

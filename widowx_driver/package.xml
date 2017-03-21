@@ -1,5 +1,5 @@
 <package>
-  <name>windowx_driver</name>
+  <name>widowx_driver</name>
   <version>0.10.0</version>
   <description>
     ROS node to controltrol Windowx arm through the Arbotix controller.

@@ -6,7 +6,7 @@ Start ROS node to pubblish target sine configuration.
 
 import rospy, roslib
 from math import sin, cos, pi
-from windowx_msgs.msg import TargetConfiguration
+from widowx_msgs.msg import TargetConfiguration
 import numpy as np
 
 if __name__ == '__main__':
@@ -22,7 +22,7 @@ if __name__ == '__main__':
     amplitude_theta = pi/20
     #Iitialize the node
     print("Initializing node...")
-    rospy.init_node('windowx_trajectory')
+    rospy.init_node('widowx_trajectory')
     target_pub = rospy.Publisher('/object/target_conf', TargetConfiguration, queue_size=1)
     #Start timer
     rate = rospy.Rate(150)

@@ -1,8 +1,8 @@
 <package>
-  <name>windowx_msgs</name>
+  <name>widowx_msgs</name>
   <version>0.10.0</version>
   <description>
-    ROS package containing all the messages needed to control the windowx arm.
+    ROS package containing all the messages needed to control the widowx arm.
   </description>
   <author>Matteo Mastellaro</author>
   <maintainer email="matteoma@kth.se">Matteo Mastellaro</maintainer>

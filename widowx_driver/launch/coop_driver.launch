@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <launch>
 
-<node pkg="windowx_driver" type="windowx_state_space_driver.py" name="windowx_3links_driver_r1" output="screen" args="" cwd="node">
+<node pkg="widowx_driver" type="widowx_state_space_driver.py" name="widowx_3links_driver_r1" output="screen" args="" cwd="node">
     <param name="robot_name" value="r1" />
     <param name="serial_port" value="/dev/ttyUSB0" />
     
@@ -19,7 +19,7 @@
     <param name="init_pos_6" type="int" value="512" />
 </node>
 
-<node pkg="windowx_driver" type="windowx_state_space_driver.py" name="windowx_3links_driver_r2" output="screen" args="" cwd="node">
+<node pkg="widowx_driver" type="widowx_state_space_driver.py" name="widowx_3links_driver_r2" output="screen" args="" cwd="node">
     <param name="robot_name" value="r2" />
     <param name="serial_port" value="/dev/ttyUSB1" />
     

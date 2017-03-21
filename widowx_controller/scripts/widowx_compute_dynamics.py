@@ -9,7 +9,7 @@ from math import sin, cos, atan2, pi, sqrt
 from numpy.linalg import inv, det, norm, pinv
 import numpy as np
 #Arm parameters
-from windowx_arm import *
+from widowx_arm import *
 
 class WidowxDynamics():
     def __init__(self):

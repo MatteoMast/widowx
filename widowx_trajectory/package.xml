@@ -1,8 +1,8 @@
 <package>
-  <name>windowx_trajectory</name>
+  <name>widowx_trajectory</name>
   <version>0.10.0</version>
   <description>
-    ROS node to compute torques for windowx arm.
+    ROS node to compute torques for widowx arm.
   </description>
   <author>Matteo Mastellaro</author>
   <maintainer email="matteoma@kth.se">Matteo Mastellaro</maintainer>

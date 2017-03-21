@@ -2,7 +2,7 @@
 
 """
 Start ROS node to set the torques and publish speed and velocities
-for manuvering the 2nd, 3rd and 4th joints of the windowx arm through the arbotix controller.
+for manuvering the 2nd, 3rd and 4th joints of the widowx arm through the arbotix controller.
 """
 
 import rospy, roslib
@@ -13,7 +13,7 @@ import numpy as np
 from arbotix_python.arbotix import ArbotiX
 from std_msgs.msg import Float32MultiArray, MultiArrayDimension, Bool
 from servos_parameters import *
-from windowx_driver.srv import *
+from widowx_driver.srv import *
 
 class WidowxNode(ArbotiX):
     """Node to control in torque the dynamixel servos"""
@@ -102,13 +102,13 @@ class WidowxNode(ArbotiX):
         self.vels_to_pub.layout.data_offset = 0
 
         #ROS pubblisher for joint velocities and positions
-        self.pos_pub = rospy.Publisher('/windowx_3links_'+ robot_name +'/joints_poses', Float32MultiArray, queue_size=1)
-        self.vel_pub = rospy.Publisher('/windowx_3links_'+ robot_name +'/joints_vels', Float32MultiArray, queue_size=1)
+        self.pos_pub = rospy.Publisher('/widowx_3links_'+ robot_name +'/joints_poses', Float32MultiArray, queue_size=1)
+        self.vel_pub = rospy.Publisher('/widowx_3links_'+ robot_name +'/joints_vels', Float32MultiArray, queue_size=1)
         self.pub_rate = rospy.Rate(150)
 
         #ROS listener for control torues
-        self.torque_sub = rospy.Subscriber('windowx_3links_'+ robot_name +'/torques', Float32MultiArray, self._torque_callback, queue_size=1)
-        self.gripper_sub = rospy.Subscriber('windowx_3links_'+ robot_name +'/gripper', Bool, self._gripper_callback, queue_size=1)
+        self.torque_sub = rospy.Subscriber('widowx_3links_'+ robot_name +'/torques', Float32MultiArray, self._torque_callback, queue_size=1)
+        self.gripper_sub = rospy.Subscriber('widowx_3links_'+ robot_name +'/gripper', Bool, self._gripper_callback, queue_size=1)
 
         #Topic for checkings
         self.check_pub = rospy.Publisher('/torque_check', Float32MultiArray, queue_size=1)
@@ -119,7 +119,7 @@ class WidowxNode(ArbotiX):
         self.check.layout.data_offset = 0
 
         #ROS service for security stop
-        self.sec_stop_server = rospy.Service('windowx_3links_' + robot_name + '/security_stop', SecurityStop, self._sec_stop)
+        self.sec_stop_server = rospy.Service('widowx_3links_' + robot_name + '/security_stop', SecurityStop, self._sec_stop)
 
         #Frequency estimation for written torques
         self.cycle_count = 1
@@ -128,12 +128,12 @@ class WidowxNode(ArbotiX):
         self.old_time = self.iter_time
         self.first_torque = True
 
-        print"\nWindowx_3link_" + robot_name + " node created, whaiting for messages in:"
-        print"      windowx_3links_" + robot_name + "/torque"
+        print"\nWidowx_3link_" + robot_name + " node created, whaiting for messages in:"
+        print"      widowx_3links_" + robot_name + "/torque"
         print"Publishing joints' positions and velocities in:"
-        print"      /windowx_3links_" + robot_name + "/joints_poses"
-        print"      /windowx_3links_" + robot_name + "/joints_vels"
-        print"Scurity stop server running: windowx_3links_" + robot_name + "/security_stop"
+        print"      /widowx_3links_" + robot_name + "/joints_poses"
+        print"      /widowx_3links_" + robot_name + "/joints_vels"
+        print"Scurity stop server running: widowx_3links_" + robot_name + "/security_stop"
         #Start publisher
         self.publish()
 
@@ -314,10 +314,10 @@ class WidowxNode(ArbotiX):
 
 if __name__ == '__main__':
     #Iitialize the node
-    rospy.init_node("windowx_3links")
+    rospy.init_node("widowx_3links")
     robot_name = rospy.get_param(rospy.get_name() + "/robot_name", "r1")
     serial_port = rospy.get_param(rospy.get_name() + "/serial_port", "/dev/ttyUSB0")
-    #Create windowx arm object
+    #Create widowx arm object
     wn = WidowxNode(serial_port, robot_name)
     #Handle shutdown
     rospy.on_shutdown(wn.tourn_off_arm)
