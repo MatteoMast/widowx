@@ -15,7 +15,7 @@ from math import sin, cos, atan2, pi, sqrt
 from numpy.linalg import inv, det, norm, pinv
 import numpy as np
 #Arm parameters
-from windowx_arm import *
+#from windowx_arm import *
 #widowx dynamics and kinematics class
 from widowx_compute_dynamics import WidowxDynamics
 

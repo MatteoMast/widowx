@@ -13,7 +13,7 @@ from math import sin, cos, pi, sqrt, exp, log, fabs
 import numpy as np
 from numpy.linalg import inv, det, norm
 #Arm parameters
-from windowx_arm import *
+#from windowx_arm import *
 #widowx dynamics and kinematics class
 from widowx_compute_dynamics import WidowxDynamics
 
