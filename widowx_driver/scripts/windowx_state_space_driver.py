@@ -15,7 +15,7 @@ from std_msgs.msg import Float32MultiArray, MultiArrayDimension, Bool
 from servos_parameters import *
 from windowx_driver.srv import *
 
-class WindowxNode(ArbotiX):
+class WidowxNode(ArbotiX):
     """Node to control in torque the dynamixel servos"""
     def __init__(self, serial_port, robot_name):
         #Initialize arbotix comunications
@@ -48,18 +48,26 @@ class WindowxNode(ArbotiX):
         mx28_init_torque_limit = int(MX_TORQUE_STEPS/3)
         mx64_init_torque_limit = int(MX_TORQUE_STEPS/5)
         ax_init_torque_limit = int(AX_TORQUE_STEPS/4)
-
         max_torque_msg = [[1, mx28_init_torque_limit], [2, mx64_init_torque_limit], [3, mx64_init_torque_limit + 100], [4, mx28_init_torque_limit], [5, ax_init_torque_limit], [6,ax_init_torque_limit]]
-        pos_msg = [[1, int(MX_POS_CENTER)], [2, int(1710)], [3, int(1577)], [4, int(2170)], [5, int(206)], [6,int(AX_POS_CENTER)]]
-
+        #Setup position msg
+        init_pos_1 = rospy.get_param(rospy.get_name() + "/init_pos_1", MX_POS_CENTER)
+        init_pos_2 = rospy.get_param(rospy.get_name() + "/init_pos_2", 1710)
+        init_pos_3 = rospy.get_param(rospy.get_name() + "/init_pos_3", 1577)
+        init_pos_4 = rospy.get_param(rospy.get_name() + "/init_pos_4", 2170)
+        init_pos_5 = rospy.get_param(rospy.get_name() + "/init_pos_5", 206)
+        init_pos_6 = rospy.get_param(rospy.get_name() + "/init_pos_6", AX_POS_CENTER)
+        pos_msg = [[1, int(init_pos_1)], [2, int(init_pos_2)], [3, int(init_pos_3)], [4, int(init_pos_4)], [5, int(init_pos_5)], [6,int(init_pos_6)]]
+        #Move to inital position
         self.syncSetTorque(max_torque_msg, pos_msg)
+        #Wait for movement
         time.sleep(3)
 
+        #Close gripper
         print(robot_name + ": Closing gruppers")
         self.setPosition(int(6), 50)
 
         #Limit joints velocities
-        max_rpm = 1.5
+        max_rpm = rospy.get_param(rospy.get_name() + "/max_rpm", 1.5)
         max_rad_s = max_rpm * 2*pi/60
         print(robot_name + ": Limiting joints velocities at: "+ str(max_rpm) +"rpm = "+ str(max_rad_s) +"rad/s")
         max_speed_steps = int(max_rpm/MX_VEL_UNIT)
@@ -68,11 +76,15 @@ class WindowxNode(ArbotiX):
         self.setSpeed(4, max_speed_steps)
 
         #Setup PID parameters
-        internal_PID = [8, 0, 0]
+        internal_P = rospy.get_param(rospy.get_name() + "/internal_P", 8)
+        internal_I = rospy.get_param(rospy.get_name() + "/internal_I", 0)
+        internal_D = rospy.get_param(rospy.get_name() + "/internal_D", 0)
+        internal_PID = [internal_P, internal_I, internal_D]
+        print(robot_name + ": Setting servos position PID as: ")
+        print(internal_PID)
         self.setPID(2, internal_PID[0], internal_PID[1], internal_PID[2])
         self.setPID(3, internal_PID[0], internal_PID[1], internal_PID[2])
         self.setPID(4, internal_PID[0], internal_PID[1], internal_PID[2])
-
 
         print robot_name + " ready, setting up ROS topics..."
 
@@ -129,9 +141,9 @@ class WindowxNode(ArbotiX):
         """
         Compute currents from torques
         """
-        currents = [np.sign(torques[0])*0.0338*(torques[0]**2) + 0.7592*torques[0] + self._gain(np.sign(directions[0]),np.sign(torques[0]))*4*0.1605, \
+        currents = [np.sign(torques[0])*0.0338*(torques[0]**2) + 0.7592*torques[0] + self._gain(np.sign(directions[0]),np.sign(torques[0]))*4.0*0.1605, \
                     np.sign(torques[1])*0.0338*(torques[1]**2) + 0.7592*torques[1] + self._gain(np.sign(directions[1]),np.sign(torques[1]))*4*0.1605, \
-                    np.sign(torques[2])*0.2258*(torques[2]**2) + 0.4850*torques[2] + self._gain(np.sign(directions[2]),np.sign(torques[2]))*0.1514]
+                    np.sign(torques[2])*0.2258*(torques[2]**2) + 0.4850*torques[2] + self._gain(np.sign(directions[2]),np.sign(torques[2]))*1.5*0.1514]
         return currents
 
     def _gain(self, direc, tau):
@@ -156,10 +168,7 @@ class WindowxNode(ArbotiX):
         goal_current = self._compute_currents(msg.data[0:3], msg.data[3:6])
         goal_current_steps = [0,0,0]
         direction = [0,0,0]
-        # print("\nchecks:")
-        # print(goal_current)
-        # print(msg.data[0:3])
-        # print(msg.data[3:6])
+
         #Setup torque steps
         max1 = MX_TORQUE_STEPS/2
         max2 = MX_TORQUE_STEPS/2
@@ -181,12 +190,6 @@ class WindowxNode(ArbotiX):
             print("goal_current_steps:")
             print(goal_current_steps)
 
-        # print("joints_poses")
-        # print(self.joints_poses)
-        # print("goal_current:")
-        # print(goal_current)
-        # print("goal_current_steps:")
-        # print(goal_current_steps)
         #Setup directions------FOR ID 2 THE DIRECTION IS INVERTED!!!!!!
         #ID 3 and 4
         for j in xrange(1,3):
@@ -315,7 +318,7 @@ if __name__ == '__main__':
     robot_name = rospy.get_param(rospy.get_name() + "/robot_name", "r1")
     serial_port = rospy.get_param(rospy.get_name() + "/serial_port", "/dev/ttyUSB0")
     #Create windowx arm object
-    wn = WindowxNode(serial_port, robot_name)
+    wn = WidowxNode(serial_port, robot_name)
     #Handle shutdown
     rospy.on_shutdown(wn.tourn_off_arm)
     rospy.spin()

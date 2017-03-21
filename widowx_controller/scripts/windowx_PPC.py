@@ -14,13 +14,15 @@ from numpy.linalg import inv, det, norm, pinv
 from windowx_arm import *
 from windowx_driver.srv import *
 import time
+#widowx dynamics and kinematics class
+from widowx_compute_dynamics import WidowxDynamics
 
 class WindowxController():
     """Class to compute and pubblish joints torques"""
     def __init__(self):
         #Load-share coefficients
-        self.c1 = 0.5
-        self.c2 = 0.5
+        self.c1 = 0.3
+        self.c2 = 0.7
 
         #Object pose in EEs frames
         self.p1o_in_e1 = np.array([[-0.044],[0],[0]])
@@ -67,6 +69,9 @@ class WindowxController():
         self.l_v_x = 0.2;
         self.l_v_y = 0.2;
         self.l_v_theta = 0.2;
+
+        #Init widowx dynamics and kinematics handler
+        self.wd = WidowxDynamics()
 
         #Initialize performance functions matrices
         self.ro_s = np.matrix([[self.ro_s_0_x,0,0],[0,self.ro_s_0_y,0],[0,0, self.ro_s_0_theta]])
@@ -202,26 +207,16 @@ class WindowxController():
             obj_target_vel = self.target_vel
             obj_target_acc = self.target_acc
 
-            # Compute jacobians and ee position from joints_poses
-            r1_x_e = np.array([[L1_X*cos(r1_array_poses[1]) - L1_Y*sin(r1_array_poses[1]) + L2*cos(r1_array_poses[1]+r1_array_poses[2]) + L3*cos(r1_array_poses[1]+r1_array_poses[2]+r1_array_poses[3])],\
-                            [L1_X*sin(r1_array_poses[1]) + L1_Y*cos(r1_array_poses[1]) + L2*sin(r1_array_poses[1]+r1_array_poses[2]) + L3*sin(r1_array_poses[1]+r1_array_poses[2]+r1_array_poses[3])],\
-                            [r1_array_poses[1] + r1_array_poses[2] + r1_array_poses[3]]])
+            #Compute ee position from joints_poses
+            r1_x_e = self.wd.compute_ee_pos1(r1_array_poses)
             # Compute ee velocities from joints_vels
-            r1_J_e = np.matrix([[ 0.047767*cos(r1_array_poses[1,0]) - 0.14203*sin(r1_array_poses[1,0] + r1_array_poses[2,0]) - 0.15036*sin(r1_array_poses[1,0] + r1_array_poses[2,0] + r1_array_poses[3,0]) - 0.141924*sin(r1_array_poses[1,0]),\
-                             - 0.15036*sin(r1_array_poses[1,0] + r1_array_poses[2,0] + r1_array_poses[3,0]) - 0.14203*sin(r1_array_poses[1,0] + r1_array_poses[2,0]), -0.15036*sin(r1_array_poses[1,0] + r1_array_poses[2,0] + r1_array_poses[3,0])],\
-                            [ 0.15036*cos(r1_array_poses[1,0] + r1_array_poses[2,0] + r1_array_poses[3,0]) + 0.14203*cos(r1_array_poses[1,0] + r1_array_poses[2,0]) + 0.141924*cos(r1_array_poses[1,0]) + 0.047767*sin(r1_array_poses[1,0]),\
-                              0.15036*cos(r1_array_poses[1,0] + r1_array_poses[2,0] + r1_array_poses[3,0]) + 0.14203*cos(r1_array_poses[1,0] + r1_array_poses[2,0]),  0.15036*cos(r1_array_poses[1,0] + r1_array_poses[2,0] + r1_array_poses[3,0])],\
-                            [1.0,1.0,1.0]])
+            r1_J_e = self.wd.compute_jacobian1(r1_array_poses)
             r1_v_e = np.dot(r1_J_e, r1_array_vels[1:4])
-
-            r2_x_e = np.array([[L1_X*cos(r2_array_poses[1]) - L1_Y*sin(r2_array_poses[1]) + L2*cos(r2_array_poses[1]+r2_array_poses[2]) + L3*cos(r2_array_poses[1]+r2_array_poses[2]+r2_array_poses[3])],\
-                            [L1_X*sin(r2_array_poses[1]) + L1_Y*cos(r2_array_poses[1]) + L2*sin(r2_array_poses[1]+r2_array_poses[2]) + L3*sin(r2_array_poses[1]+r2_array_poses[2]+r2_array_poses[3])],\
-                            [r2_array_poses[1] + r2_array_poses[2] + r2_array_poses[3]]])
-            # Compute ee velocities from joints_vels
-            r2_J_e = np.matrix([[ 0.15036*sin(r2_array_poses[1,0] + r2_array_poses[2,0] + r2_array_poses[3,0]) + 0.14203*sin(r2_array_poses[1,0] + r2_array_poses[2,0]) - 0.047767*cos(r2_array_poses[1,0]) + 0.141924*sin(r2_array_poses[1,0]), 0.15036*sin(r2_array_poses[1,0] + r2_array_poses[2,0] + r2_array_poses[3,0]) + 0.14203*sin(r2_array_poses[1,0] + r2_array_poses[2,0]), 0.15036*sin(r2_array_poses[1,0] + r2_array_poses[2,0] + r2_array_poses[3,0])],\
-                                [ 0.15036*cos(r2_array_poses[1,0] + r2_array_poses[2,0] + r2_array_poses[3,0]) + 0.14203*cos(r2_array_poses[1,0] + r2_array_poses[2,0]) + 0.141924*cos(r2_array_poses[1,0]) + 0.047767*sin(r2_array_poses[1,0]), 0.15036*cos(r2_array_poses[1,0] + r2_array_poses[2,0] + r2_array_poses[3,0]) + 0.14203*cos(r2_array_poses[1,0] + r2_array_poses[2,0]), 0.15036*cos(r2_array_poses[1,0] + r2_array_poses[2,0] + r2_array_poses[3,0])],\
-                                [-1.0,-1.0,-1.0]])
-
+            # Compute ee position from joints_poses
+            r2_x_e = self.wd.compute_ee_pos2(r2_array_poses, "exp")
+            #Compute ee velocities from joints_vels
+            r2_J_e = self.wd.compute_jacobian2(r2_array_poses)
+            r2_v_e = np.dot(r2_J_e, r2_array_vels[1:4])
             #Invert the Jacobians
             r1_J_e_inv = inv(r1_J_e)
             r2_J_e_inv = inv(r2_J_e)
@@ -232,9 +227,6 @@ class WindowxController():
                 #self.omega_off1 = r1_x_e[2,0]
                 #self.omega_off2 = r2_x_e[2,0]
                 self.first_iter = False
-
-            r2_v_e = np.dot(r2_J_e, r2_array_vels[1:4])
-            r2_x_e = np.array([[self.x_off - r2_x_e[0,0]],[r2_x_e[1,0]],[-r2_x_e[2,0]]])
 
             #Compute obj position and vel from ee positions and vel
             r1_p_ee = np.array([[r1_x_e[0,0]],[r1_x_e[1,0]],[0]])
@@ -472,16 +464,17 @@ class WindowxController():
                                 e_s2[0,0], e_s2[1,0], e_s2[2,0], e_v2[0,0], e_v2[1,0], e_v2[2,0], \
                                 self.ro_s[0,0], self.ro_s[1,1], self.ro_s[2,2], \
                                 self.ro_v[0,0], self.ro_v[1,1], self.ro_v[2,2], \
-                                norm(u_o1), norm(u_o2), norm(u_i[0:3,0]), norm(u_i[3:6,0]), norm(u_i_new[0:3,0]), norm(u_i_new[3:6,0]),\
-                                norm(u_r1), norm(u_r2), norm(u_m[0:3,0]), norm(u_m[3:6,0]), \
-                                norm(control_torque_r1), norm(control_torque_r2), \
                                 r1_array_vels[1,0], r1_array_vels[2,0], r1_array_vels[3,0], r2_array_vels[1,0], r2_array_vels[2,0], r2_array_vels[3,0],\
                                 self.obj_pose1[0,0], self.obj_pose1[1,0], self.obj_pose1[2,0], self.obj_pose2[0,0], self.obj_pose2[1,0], self.obj_pose2[2,0],\
                                 self.target_pose[0,0], self.target_pose[1,0], self.target_pose[2,0],\
                                 control_torque_r1[0,0], control_torque_r1[1,0], control_torque_r1[2,0],\
-                                control_torque_r2[0,0], control_torque_r2[1,0], control_torque_r2[2,0]\
+                                control_torque_r2[0,0], control_torque_r2[1,0], control_torque_r2[2,0],\
+                                u_o1[0,0], u_o1[1,0], u_o1[2,0], u_r1[0,0], u_r1[1,0], u_r1[2,0], u_m[0,0], u_m[1,0], u_m[2,0],\
+                                u_i_new[0,0], u_i_new[1,0], u_i_new[2,0], u_i[0,0], u_i[1,0], u_i[2,0],\
+                                u_o2[0,0], u_o2[1,0], u_o2[2,0], u_r2[0,0], u_r2[1,0], u_r2[2,0], u_m[3,0], u_m[4,0], u_m[5,0],\
+                                u_i_new[3,0], u_i_new[4,0], u_i_new[5,0], u_i[3,0], u_i[4,0], u_i[5,0]\
                                 ]
-            #self.errors.data = [norm(u_i[0:3]), norm(u_i[3:6])]
+
             self.errors_pub.publish(self.errors)
             self.pub_rate.sleep()
 
