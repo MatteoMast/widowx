@@ -72,7 +72,8 @@ class WidowxController():
         self.r2_torque_pub = rospy.Publisher('/widowx_3links_r2/torques', Float32MultiArray, queue_size=1)
         #Trajectory listener
         self.target_sub = rospy.Subscriber('/object/target_conf', TargetConfiguration, self._target_callback, queue_size=1)
-        self.errors_pub = rospy.Publisher('/errors', Float32MultiArray, queue_size=1)
+        #Signal check publisher
+        self.errors_pub = rospy.Publisher('/control_signals', Float32MultiArray, queue_size=1)
         #Publishing rate
         rate = 120
         self.period = 1.0/rate
@@ -88,7 +89,7 @@ class WidowxController():
         self.torques2.layout.data_offset = 0
         #Initiaze signals check message
         self.errors = Float32MultiArray()
-        self.errors_layout = MultiArrayDimension('errors', 6, 0)
+        self.errors_layout = MultiArrayDimension('control_signals', 6, 0)
         self.errors.layout.dim = [self.errors_layout]
         self.errors.layout.data_offset = 0
 

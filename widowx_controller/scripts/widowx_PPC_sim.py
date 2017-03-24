@@ -21,8 +21,8 @@ class WidowxController():
     """Class to compute and pubblish joints torques"""
     def __init__(self):
         #Load-share coefficients
-        self.c1 = 0.5
-        self.c2 = 0.5
+        self.c1 = 0.3
+        self.c2 = 0.7
 
         #Object pose in EEs frames
         self.p1o_in_e1 = np.array([[-0.0755],[0],[0]])
@@ -85,7 +85,7 @@ class WidowxController():
         #Trajectory listener
         self.target_sub = rospy.Subscriber('/object/target_conf', TargetConfiguration, self._target_callback, queue_size=1)
         #Signal check publisher
-        self.errors_pub = rospy.Publisher('/errors', Float32MultiArray, queue_size=1)
+        self.errors_pub = rospy.Publisher('/control_signals', Float32MultiArray, queue_size=1)
 
         #Initial pose, all joints will move to the initial target position, and initialization of pose and vels vectors
         #Here the target configuration is x_e = [x,y,orientation] x_e_dot x_e_ddot of the end effector wrt the inertial frame of the robot
@@ -329,6 +329,8 @@ class WidowxController():
             print(u_m)
 
             u_i_new = np.dot((self.I-0.5*np.dot(G_star,G.T)), u_m)
+            print("\n u_i_new")
+            print(u_i_new)
 
             control_torque_r1 = np.dot(r1_J_e.T, u_m[0:3])
             control_torque_r2 = np.dot(r2_J_e.T, u_m[3:6])
@@ -353,13 +355,15 @@ class WidowxController():
             #self.errors.data = [self.obj_pose1[0,0], self.obj_pose1[1,0], self.obj_pose1[2,0], self.target_pose[0,0], self.target_pose[1,0], self.target_pose[2,0]]
             self.errors.data = [e_s[0,0], e_s[1,0], e_s[2,0], self.ro_s[0,0], self.ro_s[1,1], self.ro_s[2,2], \
                                 e_v[0,0], e_v[1,0], e_v[2,0], self.ro_v[0,0], self.ro_v[1,1], self.ro_v[2,2], \
-                                norm(u_o), norm(u_i[0:3,0]), norm(u_i[3:6,0]), norm(u_i_new[0:3,0]), norm(u_i_new[3:6,0]), norm(u_r1), norm(u_r2), norm(u_m[0:3,0]), norm(u_m[3:6,0]), \
-                                norm(control_torque_r1), norm(control_torque_r2), \
                                 r1_array_vels[1,0], r1_array_vels[2,0], r1_array_vels[3,0], r2_array_vels[1,0], r2_array_vels[2,0], r2_array_vels[3,0],\
                                 self.obj_pose1[0,0], self.obj_pose1[1,0], self.obj_pose1[2,0],\
                                 self.target_pose[0,0], self.target_pose[1,0], self.target_pose[2,0],\
                                 control_torque_r1[0,0], control_torque_r1[1,0], control_torque_r1[2,0],\
-                                control_torque_r2[0,0], control_torque_r2[1,0], control_torque_r2[2,0]]
+                                control_torque_r2[0,0], control_torque_r2[1,0], control_torque_r2[2,0],\
+                                u_i_new[0,0], u_i_new[1,0], u_i_new[2,0], u_i_new[3,0], u_i_new[4,0], u_i_new[5,0],\
+                                u_i[0,0], u_i[1,0], u_i[2,0], u_i[3,0], u_i[4,0], u_i[5,0],\
+                                u_r1[0,0], u_r1[1,0], u_r1[2,0], u_r2[0,0], u_r2[1,0], u_r2[2,0]\
+                                ]
             #self.errors.data = [norm(u_m[0:3,0]), norm(u_m[3:6,0]), norm(u_r1), norm(u_r2), control_torque_r1[0,0], control_torque_r1[1,0], control_torque_r1[2,0], control_torque_r2[0,0], control_torque_r2[1,0], control_torque_r2[2,0]]
             self.errors_pub.publish(self.errors)
 

@@ -34,7 +34,10 @@ class WidowxController():
         #e_v weight in input computation
         self.Kv = np.matrix([[3, 0, 0], [0, 3, 0], [0, 0, 1]])
         #position error and it's derivative weight in v_o^r and dot{v_o^r} respectively
-        self.K = np.matrix([[50, 0, 0],[0, 50, 0], [0, 0, 20]])
+        self.K = np.matrix([[100, 0, 0],[0, 100, 0], [0, 0, 50]])
+
+        #Identity matrix
+        self.I = np.matrix([[1,0,0,0,0,0],[0,1,0,0,0,0],[0,0,1,0,0,0],[0,0,0,1,0,0],[0,0,0,0,1,0],[0,0,0,0,0,1]])
 
         #Init widowx dynamics and kinematics handler
         self.wd = WidowxDynamics()
@@ -54,6 +57,8 @@ class WidowxController():
         self.obj_vel_sub = rospy.Subscriber('/object_vel', Float32MultiArray, self._obj_vel_callback, queue_size=1)
         #Trajectory listener
         self.target_sub = rospy.Subscriber('/object/target_conf', TargetConfiguration, self._target_callback, queue_size=1)
+        #Signal check publisher
+        self.errors_pub = rospy.Publisher('/control_signals', Float32MultiArray, queue_size=1)
 
         #Initialize torque message
         self.torques1 = Float32MultiArray()
@@ -63,6 +68,12 @@ class WidowxController():
         self.torques1.layout.data_offset = 0
         self.torques2.layout.dim = [self.torques_layout]
         self.torques2.layout.data_offset = 0
+
+        #Initialize signal check message
+        self.errors = Float32MultiArray()
+        self.errors_layout = MultiArrayDimension('control_signals', 6, 0)
+        self.errors.layout.dim = [self.errors_layout]
+        self.errors.layout.data_offset = 0
 
         #Initialize signals
         #Initial object's desired position, vel and acc
@@ -200,12 +211,19 @@ class WidowxController():
             #Object-EE jacobians (2D)
             p_o1 = obj_array_pose[0:2] - r1_x_e[0:2]
             p_o2 = obj_array_pose[0:2] - r2_x_e[0:2]
+            p_1o = -p_o1
+            p_2o = -p_o2
             p_o1_dot = obj_array_vel[0:2] - r1_v_e[0:2]
             p_o2_dot = obj_array_vel[0:2] - r2_v_e[0:2]
             J_o1 = np.matrix([[1,0,p_o1[1,0]],[0,1,-p_o1[0,0]],[0,0,1]])
             J_o2 = np.matrix([[1,0,p_o2[1,0]],[0,1,-p_o2[0,0]],[0,0,1]])
             J_o1_dot = np.matrix([[1,0,p_o1_dot[1,0]],[0,1,-p_o1_dot[0,0]],[0,0,1]])
             J_o2_dot = np.matrix([[1,0,p_o2_dot[1,0]],[0,1,-p_o2_dot[0,0]],[0,0,1]])
+
+            #Gasp matrices
+            G = np.matrix([[1,0,-p_1o[1,0]],[0,1,p_1o[0,0]],[0,0,1],[1,0,-p_2o[1,0]],[0,1,p_2o[0,0]],[0,0,1]])
+            G_star = np.matrix([[1,0,p_1o[1,0],1,0,p_2o[1,0]],[0,1,-p_1o[0,0],0,1,-p_2o[0,0]],[0,0,1,0,0,1]]).T
+
             #Object dynamics
             Ro = np.matrix([[cos(self.obj_pose[2]), -sin(self.obj_pose[2]), 0], [sin(self.obj_pose[2]), cos(self.obj_pose[2]), 0], [0,0,1]])
             Mo = self.wd.compute_Mo(Ro)
@@ -260,6 +278,12 @@ class WidowxController():
             lambda2 = self.c2*np.dot(J_o2_t_inv, ref_term)
             u_r2 = g2 + trm1 + trm2 - trm3 + lambda2
 
+            #Ev internal forces
+            u = np.array([[u_r1[0,0]],[u_r1[1,0]],[u_r1[2,0]],[u_r2[0,0]],[u_r2[1,0]],[u_r2[2,0]]])
+            u_i = np.dot((self.I-0.5*np.dot(G_star,G.T)), u)
+
+            u_m = u - u_i
+
             #Compute torques from forces
             control_torque_r1 = np.dot(r1_J_e.T, u_r1)
             control_torque_r2 = np.dot(r2_J_e.T, u_r2)
@@ -282,6 +306,23 @@ class WidowxController():
             self.torques2.data = [0.0, control_torque_r2[0,0], control_torque_r2[1,0], control_torque_r2[2,0], 0.0, self.r2_close_gripper]
             self.r1_torque_pub.publish(self.torques1)
             self.r2_torque_pub.publish(self.torques2)
+            #Fill and publish signal check message
+            self.errors.data = [e[0,0], e[1,0], e[2,0], e_eta,\
+                                e_dot[0,0], e_dot[1,0], e_dot[2,0],\
+                                e_v[0,0], e_v[1,0], e_v[2,0], \
+                                v_o_r[0,0], v_o_r[1,0], v_o_r[2,0],\
+                                v_o_r_dot[0,0], v_o_r_dot[1,0], v_o_r_dot[2,0],\
+                                r1_array_vels[1,0], r1_array_vels[2,0], r1_array_vels[3,0], r2_array_vels[1,0], r2_array_vels[2,0], r2_array_vels[3,0],\
+                                self.obj_pose[0], self.obj_pose[1], self.obj_pose[2],\
+                                self.target_pose[0,0], self.target_pose[1,0], self.target_pose[2,0],\
+                                control_torque_r1[0,0], control_torque_r1[1,0], control_torque_r1[2,0],\
+                                control_torque_r2[0,0], control_torque_r2[1,0], control_torque_r2[2,0],\
+                                u_r1[0,0], u_r1[1,0], u_r1[2,0], u_m[0,0], u_m[1,0], u_m[2,0],\
+                                u_i[0,0], u_i[1,0], u_i[2,0],u_i[3,0], u_i[4,0], u_i[5,0],\
+                                u_r2[0,0], u_r2[1,0], u_r2[2,0], u_m[3,0], u_m[4,0], u_m[5,0]\
+                                ]
+
+            self.errors_pub.publish(self.errors)
 
 
 
